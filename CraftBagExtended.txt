@@ -1,9 +1,8 @@
-## Title: CraftBagExtended
-## Author: silvereyes
-## Description: Extra customization options for ESO Plus Craft Bags
+## Title: Craft Bag Extended
+## Author: |c99CCEFsilvereyes|r
+## Description: Adds ESO+ craft bag to guild bank screen.
 ## Version: 1.0.0
-## APIVersion: 100016
-## SavedVariables: CraftBagExtended_Data
+## APIVersion: 100015
 
 ## This Add-On is not created by, affiliated with or sponsored by ZeniMax Media Inc. or its affiliates. The Elder Scrolls® and related logos are registered trademarks or trademarks of ZeniMax Media Inc. in the United States and/or other countries. All rights reserved.
 

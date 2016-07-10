@@ -37,9 +37,9 @@ end
 
 local function OnGuildBankTabChanged(buttonData, playerDriven)
 
-	-- If the event wasn't initiated by an actual click, 
-	-- it means the scene has been reinitialized, so just exit
-	if not playerDriven then 
+	-- If the scene is in the process of showing still, no switch is needed
+	local guildBankSceneState = SCENE_MANAGER.scenes["guildBank"].state
+	if guildBankSceneState == SCENE_SHOWING then 
 		addon.lastButtonName = buttonData.descriptor
 		return 
 	end
@@ -87,8 +87,11 @@ end
 
 local function OnCraftBagButtonClicked(buttonData, playerDriven)
 	ZO_GuildBankMenuBarLabel:SetText(GetString(SI_INVENTORY_MODE_CRAFT_BAG))
-    -- TODO: set up keybind menu strip with just one option: change guild
 	OnGuildBankTabChanged(buttonData, playerDriven)
+	
+	-- Remove Deposit/withdraw keybind button when on craft bag tab
+	local keybindDescriptor = KEYBIND_STRIP.keybinds["UI_SHORTCUT_SECONDARY"].keybindButtonDescriptor
+	KEYBIND_STRIP:RemoveKeybindButton(keybindDescriptor)
 end
 
 local function SetupButtons()
@@ -125,6 +128,40 @@ local function SetupButtons()
         })
 end
 
+local function TryTransferToBank(slotControl)
+
+	local iBagId, iSlotIndex = ZO_Inventory_GetBagAndIndex(slotControl)
+	
+	-- Don't transfer if you don't have enough free slots in the guild bank
+	if GetNumBagFreeSlots(BAG_GUILDBANK) < 1 then
+		ZO_AlertEvent(EVENT_GUILD_BANK_TRANSFER_ERROR, GUILD_BANK_NO_SPACE_LEFT)
+		return
+	end
+	
+	-- Transfers from the crafting bag need to get put in a real stack in the 
+	-- backpack first to avoid "Item no longer exists" errors
+	if iBagId == BAG_VIRTUAL then
+		-- Don't transfer if you don't have a free proxy slot in your backpack
+		if GetNumBagFreeSlots(BAG_BACKPACK) < 1 then
+			ZO_AlertEvent(EVENT_INVENTORY_IS_FULL, 1, 0)
+			return
+		end
+		local iProxySlotIndex = FindFirstEmptySlotInBag(BAG_BACKPACK)
+		local iStackSize, iMaxStackSize = GetSlotStackSize(iBagId, iSlotIndex)
+		local iQuantity = math.min(iStackSize, iMaxStackSize)
+		
+		if IsProtectedFunction("RequestMoveItem") then
+			CallSecureProtected("RequestMoveItem", iBagId, iSlotIndex, BAG_BACKPACK, iProxySlotIndex, iQuantity)
+		else
+			RequestMoveItem(iBagId, iSlotIndex, BAG_BACKPACK, iProxySlotIndex, iQuantity)
+		end
+		iBagId = BAG_BACKPACK
+		iSlotIndex = iProxySlotIndex
+	end
+	
+	TransferToGuildBank(iBagId, iSlotIndex)
+end
+
 local function OnAddonLoaded(event, name)
 	if name ~= addon.name then return end
 	EVENT_MANAGER:UnregisterForEvent(addon.name, EVENT_ADD_ON_LOADED)
@@ -139,7 +176,18 @@ local function OnAddonLoaded(event, name)
 	-- Wire up original guild bank buttons for tab changed event, and add new craft bag button
 	SetupButtons()
 	
-	-- TODO: Replace Retrieve keybind and menu option with Deposit option instead
+	local addSlotAction = ZO_InventorySlotActions.AddSlotAction
+
+    local slotControl
+    ZO_PreHook("ZO_InventorySlot_DiscoverSlotActionsFromActionList", function(inventorySlot, slotActions) slotControl = inventorySlot end)
+    ZO_InventorySlotActions.AddSlotAction = function(slotActions, stringId, callback, type, visible, options)
+        if(stringId == SI_ITEM_ACTION_REMOVE_ITEMS_FROM_CRAFT_BAG and GetInteractionType() == INTERACTION_GUILDBANK) then
+			stringId = SI_ITEM_ACTION_BANK_DEPOSIT
+			callback = function() TryTransferToBank(slotControl) end
+            type = "primary"
+        end
+        addSlotAction(slotActions, stringId, callback, type, visible, options)
+    end
 end
 
 EVENT_MANAGER:RegisterForEvent(addon.name, EVENT_ADD_ON_LOADED, OnAddonLoaded)
