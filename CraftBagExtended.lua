@@ -94,6 +94,43 @@ local function OnCraftBagButtonClicked(buttonData, playerDriven)
 	KEYBIND_STRIP:RemoveKeybindButton(keybindDescriptor)
 end
 
+local function AddCraftBagButton(menuBar, callback)
+	local name = SI_INVENTORY_MODE_CRAFT_BAG
+    return ZO_MenuBar_AddButton(
+		menuBar, 
+		{
+            normal = "EsoUI/Art/Inventory/inventory_tabIcon_Craftbag_up.dds",
+            pressed = "EsoUI/Art/Inventory/inventory_tabIcon_Craftbag_down.dds",
+            highlight = "EsoUI/Art/Inventory/inventory_tabIcon_Craftbag_over.dds",
+            descriptor = name,
+            categoryName = name,
+            callback = callback,
+            --alwaysShowTooltip = true,
+            CustomTooltipFunction = function(...) ZO_InventoryMenuBar:LayoutCraftBagTooltip(...) end,
+            statusIcon = function()
+				if SHARED_INVENTORY and SHARED_INVENTORY:AreAnyItemsNew(nil, nil, BAG_VIRTUAL) then
+					return ZO_KEYBOARD_NEW_ICON
+				end
+				return nil
+			end
+        })
+end
+
+local function AddItemsButton(menuBar, callback)
+	local name = SI_INVENTORY_MODE_ITEMS
+    return ZO_MenuBar_AddButton(
+		menuBar, 
+		{
+            normal = "EsoUI/Art/Inventory/inventory_tabIcon_items_up.dds",
+            pressed = "EsoUI/Art/Inventory/inventory_tabIcon_items_down.dds",
+            highlight = "EsoUI/Art/Inventory/inventory_tabIcon_items_over.dds",
+            descriptor = name,
+            categoryName = name,
+            --alwaysShowTooltip = true,
+            callback = callback
+        })
+end
+
 local function SetupButtons()
 	local buttons = ZO_GuildBankMenuBar.m_object.m_buttons
 	
@@ -108,24 +145,7 @@ local function SetupButtons()
 	end
 	
 	-- Create craft bag button
-	local name = SI_INVENTORY_MODE_CRAFT_BAG
-	ZO_MenuBar_AddButton(
-		ZO_GuildBankMenuBar, 
-		{
-            normal = "EsoUI/Art/Inventory/inventory_tabIcon_Craftbag_up.dds",
-            pressed = "EsoUI/Art/Inventory/inventory_tabIcon_Craftbag_down.dds",
-            highlight = "EsoUI/Art/Inventory/inventory_tabIcon_Craftbag_over.dds",
-            descriptor = name,
-            categoryName = name,
-            callback = OnCraftBagButtonClicked,
-            CustomTooltipFunction = function(...) ZO_InventoryMenuBar:LayoutCraftBagTooltip(...) end,
-            statusIcon = function()
-				if SHARED_INVENTORY and SHARED_INVENTORY:AreAnyItemsNew(nil, nil, BAG_VIRTUAL) then
-					return ZO_KEYBOARD_NEW_ICON
-				end
-				return nil
-			end
-        })
+	AddCraftBagButton(ZO_GuildBankMenuBar, OnCraftBagButtonClicked)
 end
 
 local function TryTransferToBank(slotControl)
@@ -162,6 +182,31 @@ local function TryTransferToBank(slotControl)
 	TransferToGuildBank(iBagId, iSlotIndex)
 end
 
+local function MailToggle(buttonData, playerDriven)
+
+    if MAIL_SEND_SCENE.state ~= SCENE_SHOWN then
+        return
+    end
+    
+    if buttonData.descriptor == SI_INVENTORY_MODE_CRAFT_BAG then
+        ZO_PlayerInventory:SetHidden(true)
+        ZO_PlayerInventoryInfoBar:SetParent(ZO_CraftBag)
+        SCENE_MANAGER:AddFragment(CRAFT_BAG_FRAGMENT)
+        
+	else
+        SCENE_MANAGER:RemoveFragment(CRAFT_BAG_FRAGMENT)
+        ZO_PlayerInventoryInfoBar:SetParent(ZO_PlayerInventory)
+        ZO_PlayerInventory:SetHidden(false)
+	end
+end
+
+local function OnMailSendSceneStateChange(oldState, newState)
+	if(newState ~= SCENE_SHOWN) then return end
+    local button = CBE_MailSendMenu.m_object.m_clickedButton
+    if not button then return end
+    MailToggle(button.m_buttonData, false)
+end
+
 local function OnAddonLoaded(event, name)
 	if name ~= addon.name then return end
 	EVENT_MANAGER:UnregisterForEvent(addon.name, EVENT_ADD_ON_LOADED)
@@ -172,6 +217,7 @@ local function OnAddonLoaded(event, name)
 	-- Wire up guild bank scene open/close events to adjust craft bag anchors
 	local guildBankScene = SCENE_MANAGER.scenes["guildBank"]
     guildBankScene:RegisterCallback("StateChange",  OnGuildBankSceneStateChange)
+    MAIL_SEND_SCENE:RegisterCallback("StateChange",  OnMailSendSceneStateChange)
 	
 	-- Wire up original guild bank buttons for tab changed event, and add new craft bag button
 	SetupButtons()
@@ -188,6 +234,12 @@ local function OnAddonLoaded(event, name)
         end
         addSlotAction(slotActions, stringId, callback, type, visible, options)
     end
+    
+    local menuBar = CreateControlFromVirtual("CBE_MailSendMenu", ZO_MailSend, "ZO_LabelButtonBar")
+    menuBar:SetAnchor(BOTTOMLEFT, ZO_MailSend, TOPLEFT, ZO_MailSend:GetWidth() - ZO_PlayerInventory:GetWidth() + 50, -12)
+	AddItemsButton(menuBar, MailToggle)
+	AddCraftBagButton(menuBar, MailToggle)
+	ZO_MenuBar_SelectFirstVisibleButton(menuBar,true)
 end
 
 EVENT_MANAGER:RegisterForEvent(addon.name, EVENT_ADD_ON_LOADED, OnAddonLoaded)
