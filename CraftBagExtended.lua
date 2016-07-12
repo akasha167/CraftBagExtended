@@ -234,10 +234,19 @@ local function IsItemAlreadyAttachedToMail(inventorySlot)
         return GetQueuedItemAttachmentInfo(index) ~= 0
     end
 end
+local function setSlotLocked(inventorySlot, locked)
+    local slot = ZO_ScrollList_GetData(inventorySlot:GetParent())
+    slot.locked = locked
+    if(slot.slotControl) then
+        ZO_PlayerInventorySlot_SetupUsableAndLockedColor(slot.slotControl, slot.meetsUsageRequirement, slot.locked)
+    end
+end
 local function RemoveQueuedAttachment(inventorySlot)
     local index = GetQueuedItemAttachmentSlotIndex(inventorySlot)
     RemoveQueuedItemAttachment(index)
 
+    -- Remove the slot locked visual indicator
+    setSlotLocked(inventorySlot, false)
     -- Update the keybind strip command
     ZO_InventorySlot_OnMouseEnter(inventorySlot)
 end
@@ -262,6 +271,8 @@ local function TryMailItem(inventorySlot)
                 elseif(result == MAIL_ATTACHMENT_RESULT_STOLEN) then
                     ZO_Alert(UI_ALERT_CATEGORY_ERROR, SOUNDS.NEGATIVE_CLICK, GetString(SI_STOLEN_ITEM_CANNOT_MAIL_MESSAGE))
                 else
+                    -- Set the slot locked visual indicator
+                    setSlotLocked(inventorySlot, true)
                     -- Update the keybind strip command
                     ZO_InventorySlot_OnMouseEnter(inventorySlot)
                 end
@@ -274,7 +285,6 @@ local function TryMailItem(inventorySlot)
         return true
     end
 end
-
 local actionHandlers =
 {
     ["mail_attach"]       = function(inventorySlot, slotActions)
@@ -299,6 +309,9 @@ local actionHandlers =
 
 local function SetupSlotActions()
     
+    -- Use Prehook of slot action discovery to insert our custom craft bag primary actions
+    -- before the default "Retrieve" action is seen, thus causing it to be ignored
+    -- when any of our custom primary actions are active.
     ZO_PreHook("ZO_InventorySlot_DiscoverSlotActionsFromActionList", 
         function(inventorySlot, slotActions) 
             local slotType = ZO_InventorySlot_GetType(inventorySlot)
