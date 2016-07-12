@@ -17,6 +17,21 @@ local function pOutput(input)
     d(output)
 end
 
+local function CreateStrings()
+    ZO_CreateStringId("SI_CBE_CRAFTBAG_MAIL_DETACH", 
+        GetString(SI_ITEM_ACTION_MAIL_DETACH)
+        .. GetString(SI_CBE_AND) 
+        .. GetString(SI_ITEM_ACTION_ADD_ITEMS_TO_CRAFT_BAG))
+    ZO_CreateStringId("SI_CBE_CRAFTBAG_MAIL_ATTACH", 
+        GetString(SI_ITEM_ACTION_REMOVE_ITEMS_FROM_CRAFT_BAG) 
+        .. GetString(SI_CBE_AND) 
+        .. GetString(SI_ITEM_ACTION_MAIL_ATTACH))
+    ZO_CreateStringId("SI_CBE_CRAFTBAG_BANK_DEPOSIT", 
+        GetString(SI_ITEM_ACTION_REMOVE_ITEMS_FROM_CRAFT_BAG) 
+        .. GetString(SI_CBE_AND) 
+        .. GetString(SI_ITEM_ACTION_BANK_DEPOSIT))
+end
+
 local function SwitchScene(oldScene, newScene) 
     local removeFragments = addon.guildBankFragments[oldScene]
     for i,removeFragment in pairs(removeFragments) do
@@ -182,6 +197,31 @@ local function TryTransferToBank(slotControl)
     TransferToGuildBank(iBagId, iSlotIndex)
 end
 
+local function TransferToCraftBag(inventorySlot)
+    
+    local bag, slotIndex = ZO_Inventory_GetBagAndIndex(inventorySlot)
+    local inventoryLink = GetItemLink(bag, slotIndex)
+    
+    local targetSlotIndex = nil
+    for currentSlotIndex,slotData in ipairs(PLAYER_INVENTORY.inventories[INVENTORY_CRAFT_BAG].slots) do
+        local craftBagLink = GetItemLink(BAG_VIRTUAL, currentSlotIndex)
+        if craftBagLink == inventoryLink then
+            targetSlotIndex = currentSlotIndex
+            break
+        end
+    end
+    if not targetSlotIndex then
+        targetSlotIndex = FindFirstEmptySlotInBag(BAG_VIRTUAL)
+    end
+    
+    local quantity = GetSlotStackSize(bag, slotIndex)
+    if IsProtectedFunction("RequestMoveItem") then
+        CallSecureProtected("RequestMoveItem", bag, slotIndex, BAG_VIRTUAL, targetSlotIndex, quantity)
+    else
+        RequestMoveItem(bag, slotIndex, BAG_VIRTUAL, targetSlotIndex, quantity)
+    end
+end
+
 local function MailToggle(buttonData, playerDriven)
 
     if MAIL_SEND_SCENE.state ~= SCENE_SHOWN then
@@ -249,15 +289,16 @@ local function RemoveQueuedAttachment(inventorySlot)
     setSlotLocked(inventorySlot, false)
     -- Update the keybind strip command
     ZO_InventorySlot_OnMouseEnter(inventorySlot)
+    -- Transfer mats back to craft bag
+    TransferToCraftBag(inventorySlot)
 end
 
-local function TryMailItem(inventorySlot)
+local function TryMailItem(bag, index)
     if(IsSendingMail()) then
         for i = 1, MAIL_MAX_ATTACHED_ITEMS do
             local queuedFromBag = GetQueuedItemAttachmentInfo(i)
 
             if(queuedFromBag == 0) then
-                local bag, index = ZO_Inventory_GetBagAndIndex(inventorySlot)
                 local result = QueueItemAttachment(bag, index, i)
 
                 if(result == MAIL_ATTACHMENT_RESULT_ALREADY_ATTACHED) then
@@ -270,11 +311,6 @@ local function TryMailItem(inventorySlot)
                     ZO_Alert(UI_ALERT_CATEGORY_ERROR, SOUNDS.NEGATIVE_CLICK, GetString(SI_MAIL_LOCKED))
                 elseif(result == MAIL_ATTACHMENT_RESULT_STOLEN) then
                     ZO_Alert(UI_ALERT_CATEGORY_ERROR, SOUNDS.NEGATIVE_CLICK, GetString(SI_STOLEN_ITEM_CANNOT_MAIL_MESSAGE))
-                else
-                    -- Set the slot locked visual indicator
-                    setSlotLocked(inventorySlot, true)
-                    -- Update the keybind strip command
-                    ZO_InventorySlot_OnMouseEnter(inventorySlot)
                 end
 
                 return true
@@ -285,22 +321,82 @@ local function TryMailItem(inventorySlot)
         return true
     end
 end
+local function StopWaitingForTransfer()
+    addon.waitingForTransfer = nil
+    EVENT_MANAGER:UnregisterForEvent(addon.name, EVENT_INVENTORY_SINGLE_SLOT_UPDATE)
+end
+local function OnBackpackSlotUpdated(eventCode, bagId, slotId, isNewItem, itemSoundCategory, updateReason)
+    if not addon.waitingForTransfer or addon.waitingForTransfer.targetBag ~= bagId then return end
+    local backpackItemLink = GetItemLink(bagId, slotId)
+    local backpackItemId
+    _, _, _, backpackItemId = ZO_LinkHandler_ParseLink( backpackItemLink )
+    local waitingForItemLink = GetItemLink(addon.waitingForTransfer.bag, addon.waitingForTransfer.slotIndex)
+    local waitingForItemId
+    _, _, _, waitingForItemId = ZO_LinkHandler_ParseLink( waitingForItemLink )
+    
+    if backpackItemId ~= waitingForItemId then return end
+    
+    if addon.waitingForTransfer.fromCraftBag then
+        local slotData = SHARED_INVENTORY:GenerateSingleSlotData(bagId, slotId)
+        slotData.fromCraftBag = true
+        TryMailItem(bagId, slotId)
+    end
+    StopWaitingForTransfer()
+    
+    local inventoryType = PLAYER_INVENTORY.bagToInventoryType[bagId]
+    PLAYER_INVENTORY:UpdateList(inventoryType, true)
+end
+local function StartWaitingForTransfer(sourceBagId, sourceSlotIndex)
+    addon.waitingForTransfer = { 
+        bag = sourceBagId, 
+        slotIndex = sourceSlotIndex, 
+        targetBag = BAG_BACKPACK, 
+        fromCraftBag = true 
+    }
+    EVENT_MANAGER:RegisterForEvent(addon.name, EVENT_INVENTORY_SINGLE_SLOT_UPDATE, OnBackpackSlotUpdated)
+end
+local function OnTransferDialogFailed(category, soundId, message, ...)
+    if not addon.waitingForTransfer then return end
+    local errorStringId = (addon.waitingForTransfer.targetBag == BAG_BACKPACK) and SI_INVENTORY_ERROR_INVENTORY_FULL or SI_INVENTORY_ERROR_BANK_FULL
+    if message == errorStringId then
+        StopWaitingForTransfer()
+    end
+end
+local function RetrieveAndAttach(inventorySlot)
+    local bag, index = ZO_Inventory_GetBagAndIndex(inventorySlot)
+    if DoesBagHaveSpaceFor(BAG_BACKPACK, bag, index) then
+        StartWaitingForTransfer(bag, index)
+        local transferDialog = SYSTEMS:GetObject("ItemTransferDialog")
+        transferDialog:StartTransfer(bag, index, BAG_BACKPACK)
+        return true
+    else
+        ZO_Alert(UI_ALERT_CATEGORY_ERROR, SOUNDS.NEGATIVE_CLICK, SI_INVENTORY_ERROR_INVENTORY_FULL)
+    end
+end
+
 local actionHandlers =
 {
     ["mail_attach"]       = function(inventorySlot, slotActions)
                                     if IsSendingMail() and not IsItemAlreadyAttachedToMail(inventorySlot) then
-                                        slotActions:AddSlotAction(SI_ITEM_ACTION_MAIL_ATTACH, function() TryMailItem(inventorySlot) end, "primary")
+                                        slotActions:AddSlotAction(SI_CBE_CRAFTBAG_MAIL_ATTACH, function() RetrieveAndAttach(inventorySlot) end, "primary")
                                     end
                                 end,
 
     ["mail_detach"]        = function(inventorySlot, slotActions)
+    
                                     if IsSendingMail() and IsItemAlreadyAttachedToMail(inventorySlot) then
-                                        slotActions:AddSlotAction(SI_ITEM_ACTION_MAIL_DETACH, function() RemoveQueuedAttachment(inventorySlot) end, "primary")
+                                        local slotControl = inventorySlot:GetParent()
+                                        local fromCraftBag = slotControl and slotControl.dataEntry 
+                                                             and slotControl.dataEntry.data 
+                                                             and slotControl.dataEntry.data.fromCraftBag
+                                        if fromCraftBag then
+                                            slotActions:AddSlotAction(SI_CBE_CRAFTBAG_MAIL_DETACH, function() RemoveQueuedAttachment(inventorySlot) end, "primary")
+                                        end
                                     end
                                 end,
     ["guild_bank_deposit"] = function(inventorySlot, slotActions)
                                     if(GetInteractionType() == INTERACTION_GUILDBANK and GetSelectedGuildBankId()) then
-                                        slotActions:AddSlotAction(SI_ITEM_ACTION_BANK_DEPOSIT,  function()
+                                        slotActions:AddSlotAction(SI_CBE_CRAFTBAG_BANK_DEPOSIT,  function()
                                                                                                     TryTransferToBank(inventorySlot)
                                                                                                 end, "primary")
                                     end
@@ -315,7 +411,9 @@ local function SetupSlotActions()
     ZO_PreHook("ZO_InventorySlot_DiscoverSlotActionsFromActionList", 
         function(inventorySlot, slotActions) 
             local slotType = ZO_InventorySlot_GetType(inventorySlot)
-            if slotType == SLOT_TYPE_CRAFT_BAG_ITEM then
+            local slotControl = inventorySlot:GetParent()
+            local fromCraftBag = slotControl and slotControl.dataEntry and slotControl.dataEntry.data and slotControl.dataEntry.data.fromCraftBag
+            if slotType == SLOT_TYPE_CRAFT_BAG_ITEM or fromCraftBag then
                 for _, actionHandler in pairs(actionHandlers) do
                     actionHandler(inventorySlot, slotActions)
                 end
@@ -327,6 +425,9 @@ end
 local function OnAddonLoaded(event, name)
     if name ~= addon.name then return end
     EVENT_MANAGER:UnregisterForEvent(addon.name, EVENT_ADD_ON_LOADED)
+    
+    -- Create custom localized button action strings
+    CreateStrings()
     
     -- Save the original anchors
     RegisterAnchors()
@@ -340,6 +441,8 @@ local function OnAddonLoaded(event, name)
     SetupButtons()
     
     SetupSlotActions()
+    
+    ZO_PreHook("ZO_Alert", OnTransferDialogFailed)
     
     local menuBar = CreateControlFromVirtual("CBE_MailSendMenu", ZO_MailSend, "ZO_LabelButtonBar")
     menuBar:SetAnchor(BOTTOMLEFT, ZO_MailSend, TOPLEFT, ZO_MailSend:GetWidth() - ZO_PlayerInventory:GetWidth() + 50, -12)
