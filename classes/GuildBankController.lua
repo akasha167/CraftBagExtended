@@ -140,6 +140,72 @@ function CBE_GuildBankController:Initialize()
 				KEYBIND_STRIP.keybinds["UI_SHORTCUT_SECONDARY"].keybindButtonDescriptor
 			KEYBIND_STRIP:RemoveKeybindButton(secondaryKeybindDescriptor)
 		end)
+	
+	
+    --[[ When listening for a guild bank slot updated, handle any guild bank 
+         alerts that get raised by stopping the transfer. ]]
+    local guildBankMessages = {
+		[GetString(SI_GUILDBANKRESULT2)]  = true,
+		[GetString(SI_GUILDBANKRESULT3)]  = true,
+		[GetString(SI_GUILDBANKRESULT4)]  = true,
+		[GetString(SI_GUILDBANKRESULT5)]  = true,
+		[GetString(SI_GUILDBANKRESULT6)]  = true,
+		[GetString(SI_GUILDBANKRESULT7)]  = true,
+		[GetString(SI_GUILDBANKRESULT8)]  = true,
+		[GetString(SI_GUILDBANKRESULT9)]  = true,
+		[GetString(SI_GUILDBANKRESULT10)] = true,
+		[GetString(SI_GUILDBANKRESULT11)] = true,
+		[GetString(SI_GUILDBANKRESULT12)] = true,
+		[GetString(SI_GUILDBANKRESULT13)] = true,
+		[GetString(SI_GUILDBANKRESULT14)] = true,
+		[GetString(SI_GUILDBANKRESULT15)] = true,
+		[GetString(SI_GUILDBANKRESULT16)] = true,
+		[GetString(SI_GUILDBANKRESULT17)] = true,
+		[GetString(SI_GUILDBANKRESULT18)] = true,
+    }
+	local function OnBankTransferFailed(category, soundId, message, ...)
+		if not me.bankTransfer then return end
+		
+		if guildBankMessages[message] then
+			me:StopWaitingForBank()
+		end
+	end
+    ZO_PreHook("ZO_Alert", OnBankTransferFailed)
+end
+
+--[[ Handles bank item slot update events thrown from a "Deposit" action. ]]
+local function OnBankSlotUpdated(eventCode, slotId)
+
+	if not me.bankTransfer then 
+		CBE:Debug("Not waiting for transfer")
+		return 
+	end
+	
+	-- Double check that the item matches what we are waiting for. I can't 
+	-- imagine it would ever be different, but it's best to make sure.
+	local backpackItemLink = GetItemLink(BAG_GUILDBANK, slotId)
+	local backpackItemId
+	_, _, _, backpackItemId = ZO_LinkHandler_ParseLink( backpackItemLink )
+	local waitingForItemId
+	_, _, _, waitingForItemId = ZO_LinkHandler_ParseLink( me.bankTransfer.itemLink )
+	if backpackItemId ~= waitingForItemId then 
+		CBE:Debug("item id mismatch")
+		return 
+	end
+	
+	me:StopWaitingForBank()
+	
+	-- Update the craft bag tooltip
+	PLAYER_INVENTORY:UpdateList(INVENTORY_CRAFT_BAG, true)
+end
+
+local function StartWaitingForBank(bag, slotIndex, targetBag)
+
+	local itemLink = GetItemLink(bag, slotIndex)
+	me.bankTransfer = { itemLink = itemLink, targetBag = targetBag }
+	
+	-- Listen for bank slot updates
+	EVENT_MANAGER:RegisterForEvent(me.name, EVENT_GUILD_BANK_ITEM_ADDED, OnBankSlotUpdated)
 end
 
 --[[ Checks to ensure that there is a free inventory slot available in both the
@@ -161,6 +227,17 @@ local function ValidateFreeSlots(bag, slotIndex)
     end
     
     return true
+end
+
+--[[ Cancels any outstanding guild bank slot update event observers ]]
+function CBE_GuildBankController:StopWaitingForBank()
+
+	-- Stop listening for bank slot update events
+	-- Unregister pending callback information
+	me.bankTransfer = nil
+	
+	-- Stop listening for bank slot update events that would trigger a callback
+	EVENT_MANAGER:UnregisterForEvent(me.name, EVENT_GUILD_BANK_ITEM_ADDED)
 end
 
 --[[ Adds guildbank-specific inventory slot crafting bag actions ]]
@@ -194,6 +271,9 @@ function CBE_GuildBankController:AddSlotActions()
 				RequestMoveItem(bag, slotIndex, BAG_BACKPACK, backpackSlotIndex, quantity)
 			end
 			
+			-- Listen for guild bank slot updates
+			StartWaitingForBank(BAG_BACKPACK, backpackSlotIndex, BAG_GUILDBANK)
+			
 			TransferToGuildBank(BAG_BACKPACK, backpackSlotIndex)
 		end,
 		"primary"
@@ -211,6 +291,10 @@ function CBE_GuildBankController:AddSlotActions()
 				function()
 					local info = CBE.Inventory.waitingForTransfer
 					if not info then return end
+			
+					-- Listen for guild bank slot updates
+					StartWaitingForBank(info.targetBag, info.targetSlotIndex, BAG_GUILDBANK)
+					
 					TransferToGuildBank(info.targetBag, info.targetSlotIndex)
 				end
 			)
