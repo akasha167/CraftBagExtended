@@ -28,8 +28,15 @@ function CBE_InventoryController:Initialize()
          context menu whenever an item is hovered. ]]
     local function PreDiscoverSlotActions(inventorySlot, slotActions) 
     
-		local slotType = ZO_InventorySlot_GetType(inventorySlot)
 		local bag, slotIndex = ZO_Inventory_GetBagAndIndex(inventorySlot)
+		
+		-- We don't have any slot actions for bags other than the backpack, the
+		-- craft bag, and the guild bank.
+		if bag ~= BAG_BACKPACK and bag ~= BAG_VIRTUAL and bag ~= BAG_GUILDBANK then
+			return
+		end
+		
+		local slotType = ZO_InventorySlot_GetType(inventorySlot)
 		
 		-- fromCraftBag flag marks backpack slots for return/stow actions
 		local fromCraftBag = SHARED_INVENTORY:GenerateSingleSlotData(bag, slotIndex).fromCraftBag
