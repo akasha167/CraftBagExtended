@@ -195,7 +195,7 @@ function CBE_MailController:AddSlotActions()
 			function() 
 				CBE.Inventory:StartTransfer(
 					info.inventorySlot, 
-					actionName, SI_ITEM_ACTION_REMOVE_ITEMS_FROM_CRAFT_BAG, 
+					actionName, SI_ITEM_ACTION_MAIL_ATTACH, 
 					TransferAttachItemCallback) 
 			end, 
 			"primary")
