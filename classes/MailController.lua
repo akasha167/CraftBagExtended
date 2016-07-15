@@ -56,7 +56,7 @@ function CBE_MailController:Initialize()
 		
 		-- Since reopening the mail send scene causes the inventory list to show regardless of 
 		-- whether the craft bag was open when it last closed, we need to initialize the craft bag.
-		elseif newState ~= SCENE_SHOWN then
+		elseif newState == SCENE_SHOWN then
 			local button = CBE_MailSendMenu.m_object.m_clickedButton
 			if not button then return end
 			OnCraftBagMenuButtonClicked(button.m_buttonData, false)
