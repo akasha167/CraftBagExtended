@@ -33,6 +33,7 @@ local function OnAddonLoaded(event, name)
     if name ~= CBE.name then return end
     EVENT_MANAGER:UnregisterForEvent(CBE.name, EVENT_ADD_ON_LOADED)
     
+    CBE.Settings  = CBE_SettingsController:New()
     CBE.GuildBank = CBE_GuildBankController:New()
     CBE.Mail      = CBE_MailController:New()
     CBE.Inventory = CBE_InventoryController:New()

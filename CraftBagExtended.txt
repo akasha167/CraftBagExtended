@@ -3,8 +3,15 @@
 ## Description: Adds ESO+ craft bag to mail send and guild bank screens.
 ## Version: 1.1.1
 ## APIVersion: 100015
+## SavedVariables: CraftBagExtended_Data
 
 ## This Add-On is not created by, affiliated with or sponsored by ZeniMax Media Inc. or its affiliates. The Elder Scrolls® and related logos are registered trademarks or trademarks of ZeniMax Media Inc. in the United States and/or other countries. All rights reserved.
+
+lib\LibStub\LibStub.lua
+lib\LibCustomMenu\LibCustomMenu.lua
+lib\LibAddonMenu-2.0\LibAddonMenu-2.0.lua
+lib\LibAddonMenu-2.0\controls\panel.lua
+lib\LibAddonMenu-2.0\controls\checkbox.lua
 
 localization\$(language).lua
 localization\Shared.lua
@@ -14,3 +21,4 @@ CraftBagExtended.lua
 classes\GuildBankController.lua
 classes\InventoryController.lua
 classes\MailController.lua
+classes\SettingsController.lua
