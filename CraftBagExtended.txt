@@ -22,3 +22,4 @@ classes\GuildBankController.lua
 classes\InventoryController.lua
 classes\MailController.lua
 classes\SettingsController.lua
+classes\TransferQueue.lua

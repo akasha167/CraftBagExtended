@@ -6,12 +6,11 @@ function CBE_GuildBankController:New(...)
     return controller
 end
 
-local me
-
 function CBE_GuildBankController:Initialize()
 
-    me = self
     self.name = "CBE_GuildBankController"
+    self.bankTransferQueue = CBE_TransferQueue:New(self.name.."Queue")
+    self.debug = false
     
     -- used by SwitchScene() below
     local guildBankFragments = {
@@ -23,10 +22,10 @@ function CBE_GuildBankController:Initialize()
     -- used by OnGuildBankSceneStateChange() below
     local anchors = { }
     
-	--[[ Removes and adds the appropriate window fragments to display the given tabs. ]]
+    --[[ Removes and adds the appropriate window fragments to display the given tabs. ]]
     local function SwitchScene(oldScene, newScene) 
     
-		-- Remove the old tab's fragments
+        -- Remove the old tab's fragments
         local removeFragments = guildBankFragments[oldScene]
         for i,removeFragment in pairs(removeFragments) do
             SCENE_MANAGER:RemoveFragment(removeFragment)
@@ -46,13 +45,13 @@ function CBE_GuildBankController:Initialize()
         end
     end
 
-	--[[ Handle button clicks for deposit, withdraw, and craft bag buttons. ]]
+    --[[ Handle button clicks for deposit, withdraw, and craft bag buttons. ]]
     local function OnGuildBankTabChanged(buttonData, playerDriven)
 
         -- If the scene is in the process of showing still, no switch is needed
         local guildBankSceneState = SCENE_MANAGER.scenes["guildBank"].state
         if guildBankSceneState == SCENE_SHOWING then 
-			-- Remember the previous tab so we know which scene to hide when changing
+            -- Remember the previous tab so we know which scene to hide when changing
             self.lastButtonDescriptor = buttonData.descriptor
             return 
         end
@@ -66,7 +65,7 @@ function CBE_GuildBankController:Initialize()
         self.lastButtonDescriptor = buttonData.descriptor
     end
 
-	--[[ Handle guild bank screen open/close events ]]
+    --[[ Handle guild bank screen open/close events ]]
     local function OnGuildBankSceneStateChange(oldState, newState)
         local anchorTemplate
         
@@ -78,7 +77,8 @@ function CBE_GuildBankController:Initialize()
         -- On exit, stop any outstanding transfers and restore craft bag window 
         -- anchors.
         elseif(newState == SCENE_HIDDEN) then
-            CBE.Inventory:StopTransfer() 
+            CBE.Inventory.backpackTransferQueue:Clear()
+            self.bankTransferQueue:Clear()
             anchorTemplate = ZO_CraftBag:GetName()
         else
             return
@@ -86,8 +86,8 @@ function CBE_GuildBankController:Initialize()
         
         --[[ Hacky way to adjust the craft bag window position when guild bank 
              scene is opened/closed.
-		     Probably better to use backpack layout fragments in the future.
-		     See EsoUI/ingame/inventory/backpacklayouts.lua for examples. ]]
+             Probably better to use backpack layout fragments in the future.
+             See EsoUI/ingame/inventory/backpacklayouts.lua for examples. ]]
         ZO_CraftBag:ClearAnchors()
         for i=0,1 do
             local anchor = anchors[anchorTemplate][i]
@@ -97,115 +97,93 @@ function CBE_GuildBankController:Initialize()
     
     --[[ Save anchor positions for the guild bank and craft bag windows for use
          on open/close events. ]]
-	local windowAnchorsToSave = { ZO_GuildBank, ZO_CraftBag }
-	for i,window in pairs(windowAnchorsToSave) do
-		local windowAnchors = {}
-		for j=0,1 do
-			local isValidAnchor, point, relativeTo, relativePoint, offsetX, offsetY = window:GetAnchor(j)
-			windowAnchors[j] = {
-				point = point,
-				relativeTo = relativeTo,
-				relativePoint = relativePoint,
-				offsetX = offsetX,
-				offsetY = offsetY,    
-			}
-			anchors[window:GetName()] = windowAnchors
-		end
-	end
+    local windowAnchorsToSave = { ZO_GuildBank, ZO_CraftBag }
+    for i,window in pairs(windowAnchorsToSave) do
+        local windowAnchors = {}
+        for j=0,1 do
+            local isValidAnchor, point, relativeTo, relativePoint, offsetX, offsetY = window:GetAnchor(j)
+            windowAnchors[j] = {
+                point = point,
+                relativeTo = relativeTo,
+                relativePoint = relativePoint,
+                offsetX = offsetX,
+                offsetY = offsetY,    
+            }
+            anchors[window:GetName()] = windowAnchors
+        end
+    end
     SCENE_MANAGER.scenes["guildBank"]:RegisterCallback("StateChange",  OnGuildBankSceneStateChange)
     
     --[[ Wire up original guild bank buttons for tab changed event. ]]
-	local buttons = ZO_GuildBankMenuBar.m_object.m_buttons
-	for i, button in ipairs(buttons) do
-		local buttonData = button[1].m_object.m_buttonData
-		local callback = buttonData.callback
-		buttonData.callback = function(...)
-			OnGuildBankTabChanged(...)
-			callback(...)
-		end
-	end
-	
+    local buttons = ZO_GuildBankMenuBar.m_object.m_buttons
+    for i, button in ipairs(buttons) do
+        local buttonData = button[1].m_object.m_buttonData
+        local callback = buttonData.callback
+        buttonData.callback = function(...)
+            OnGuildBankTabChanged(...)
+            callback(...)
+        end
+    end
+    
     --[[ Create craft bag button. ]]
-	CBE:AddCraftBagButton(ZO_GuildBankMenuBar, 
-		function (buttonData, playerDriven)
-		
-			-- Update the menu label to say "Craft Items"
-			ZO_GuildBankMenuBarLabel:SetText(GetString(SI_INVENTORY_MODE_CRAFT_BAG))
-			
-			-- Tab changed callback
-			OnGuildBankTabChanged(buttonData, playerDriven)
-			
-			-- Remove Deposit/withdraw keybind button when on craft bag tab
-			local secondaryKeybindDescriptor = 
-				KEYBIND_STRIP.keybinds["UI_SHORTCUT_SECONDARY"].keybindButtonDescriptor
-			KEYBIND_STRIP:RemoveKeybindButton(secondaryKeybindDescriptor)
-		end)
-	
-	
+    CBE:AddCraftBagButton(ZO_GuildBankMenuBar, 
+        function (buttonData, playerDriven)
+        
+            -- Update the menu label to say "Craft Items"
+            ZO_GuildBankMenuBarLabel:SetText(GetString(SI_INVENTORY_MODE_CRAFT_BAG))
+            
+            -- Tab changed callback
+            OnGuildBankTabChanged(buttonData, playerDriven)
+            
+            -- Remove Deposit/withdraw keybind button when on craft bag tab
+            local secondaryKeybindDescriptor = 
+                KEYBIND_STRIP.keybinds["UI_SHORTCUT_SECONDARY"].keybindButtonDescriptor
+            KEYBIND_STRIP:RemoveKeybindButton(secondaryKeybindDescriptor)
+        end)
+    
+    
     --[[ When listening for a guild bank slot updated, handle any guild bank 
-         alerts that get raised by stopping the transfer. ]]
-    local guildBankMessages = {
-		[GetString(SI_GUILDBANKRESULT2)]  = true,
-		[GetString(SI_GUILDBANKRESULT3)]  = true,
-		[GetString(SI_GUILDBANKRESULT4)]  = true,
-		[GetString(SI_GUILDBANKRESULT5)]  = true,
-		[GetString(SI_GUILDBANKRESULT6)]  = true,
-		[GetString(SI_GUILDBANKRESULT7)]  = true,
-		[GetString(SI_GUILDBANKRESULT8)]  = true,
-		[GetString(SI_GUILDBANKRESULT9)]  = true,
-		[GetString(SI_GUILDBANKRESULT10)] = true,
-		[GetString(SI_GUILDBANKRESULT11)] = true,
-		[GetString(SI_GUILDBANKRESULT12)] = true,
-		[GetString(SI_GUILDBANKRESULT13)] = true,
-		[GetString(SI_GUILDBANKRESULT14)] = true,
-		[GetString(SI_GUILDBANKRESULT15)] = true,
-		[GetString(SI_GUILDBANKRESULT16)] = true,
-		[GetString(SI_GUILDBANKRESULT17)] = true,
-		[GetString(SI_GUILDBANKRESULT18)] = true,
-    }
-	local function OnBankTransferFailed(category, soundId, message, ...)
-		if not me.bankTransfer then return end
-		
-		if guildBankMessages[message] then
-			me:StopWaitingForBank()
-		end
-	end
-    ZO_PreHook("ZO_Alert", OnBankTransferFailed)
-end
+         transfer errors that get raised by stopping the transfer. ]]
+    local function OnBankTransferFailed(eventCode, reason)
+        if not self.bankTransferQueue:HasItems() then return end
+        
+        for i,transferItem in ipairs(self.bankTransferQueue.items) do
+            
+            local itemLink = GetItemLink(transferItem.bag, transferItem.slotIndex)
+            CBE:Debug("Moving "..itemLink.." back to craft bag due to bank transfer error "..tostring(reason), self.debug)
+            CBE.Inventory:TransferToCraftBag(transferItem.bag, transferItem.slotIndex)
+        end
+    end
+    EVENT_MANAGER:RegisterForEvent(self.name, EVENT_GUILD_BANK_TRANSFER_ERROR, OnBankTransferFailed)
+    
+    --[[ Listen for new slot updates to the craft bag when on the guild bank 
+         withdrawal screen. ]]
+    local function OnInventorySlotUpdated(eventCode, bagId, slotId, isNewItem, itemSoundCategory, updateReason)
+        if bagId ~= BAG_VIRTUAL or GetInteractionType() ~= INTERACTION_GUILDBANK then return end
+        local guildBankMenuButton = ZO_GuildBankMenuBar.m_object.m_clickedButton
+        if guildBankMenuButton.m_buttonData.descriptor ~= SI_BANK_WITHDRAW  then return end
+        
+        CBE:Debug("slotId: "..tostring(slotId)..", isNewItem: "..tostring(isNewItem)..", updateReason: "..updateReason, self.debug)
+    end
+    EVENT_MANAGER:RegisterForEvent(self.name, EVENT_INVENTORY_SINGLE_SLOT_UPDATE, OnInventorySlotUpdated)
 
---[[ Handles bank item slot update events thrown from a "Deposit" action. ]]
-local function OnBankSlotUpdated(eventCode, slotId)
+    --[[ Handles bank item slot update events thrown from a "Deposit" action. ]]
+    local function OnBankSlotUpdated(eventCode, slotId)
 
-	if not me.bankTransfer then 
-		CBE:Debug("Not waiting for transfer")
-		return 
-	end
-	
-	-- Double check that the item matches what we are waiting for. I can't 
-	-- imagine it would ever be different, but it's best to make sure.
-	local backpackItemLink = GetItemLink(BAG_GUILDBANK, slotId)
-	local backpackItemId
-	_, _, _, backpackItemId = ZO_LinkHandler_ParseLink( backpackItemLink )
-	local waitingForItemId
-	_, _, _, waitingForItemId = ZO_LinkHandler_ParseLink( me.bankTransfer.itemLink )
-	if backpackItemId ~= waitingForItemId then 
-		CBE:Debug("item id mismatch")
-		return 
-	end
-	
-	me:StopWaitingForBank()
-	
-	-- Update the craft bag tooltip
-	PLAYER_INVENTORY:UpdateList(INVENTORY_CRAFT_BAG, true)
-end
-
-local function StartWaitingForBank(bag, slotIndex, targetBag)
-
-	local itemLink = GetItemLink(bag, slotIndex)
-	me.bankTransfer = { itemLink = itemLink, targetBag = targetBag }
-	
-	-- Listen for bank slot updates
-	EVENT_MANAGER:RegisterForEvent(me.name, EVENT_GUILD_BANK_ITEM_ADDED, OnBankSlotUpdated)
+        CBE:Debug("bank transfer dequeue: "..tostring(eventCode)..", "..tostring(slotId), self.debug)
+        local transferItem = self.bankTransferQueue:Dequeue(BAG_GUILDBANK, slotId)
+        
+        if not transferItem then 
+            CBE:Debug("Not waiting for any bank transfers for guild bank slot "..tostring(slotId), self.debug)
+            return 
+        end
+        
+        -- Update the craft bag tooltip
+        CBE.Inventory:RefreshActiveTooltip()
+    end
+    
+    -- Listen for bank slot updates
+    EVENT_MANAGER:RegisterForEvent(self.name, EVENT_GUILD_BANK_ITEM_ADDED, OnBankSlotUpdated)
 end
 
 --[[ Checks to ensure that there is a free inventory slot available in both the
@@ -229,76 +207,84 @@ local function ValidateFreeSlots(bag, slotIndex)
     return true
 end
 
---[[ Cancels any outstanding guild bank slot update event observers ]]
-function CBE_GuildBankController:StopWaitingForBank()
-
-	-- Stop listening for bank slot update events
-	-- Unregister pending callback information
-	me.bankTransfer = nil
-	
-	-- Stop listening for bank slot update events that would trigger a callback
-	EVENT_MANAGER:UnregisterForEvent(me.name, EVENT_GUILD_BANK_ITEM_ADDED)
-end
+                
 
 --[[ Adds guildbank-specific inventory slot crafting bag actions ]]
-function CBE_GuildBankController:AddSlotActions()
+function CBE_GuildBankController:AddSlotActions(slotInfo)
 
-	local slotInfo = CBE.Inventory.slotInfo
-
-	-- Only add these actions when the guild bank screen is open on the craft bag tab
+    -- Only add these actions when the guild bank screen is open on the craft bag tab
     if GetInteractionType() ~= INTERACTION_GUILDBANK 
        or not GetSelectedGuildBankId() 
        or slotInfo.slotType ~= SLOT_TYPE_CRAFT_BAG_ITEM then 
-		return 
-	end
-	local inventorySlot = slotInfo.inventorySlot
-	local bag = slotInfo.bag
-	local slotIndex = slotInfo.slotIndex
-	
-	--[[ Deposit ]]--
-	slotInfo.slotActions:AddSlotAction(
-		SI_BANK_DEPOSIT,  
-		function() 
-			if not ValidateFreeSlots(bag, slotIndex) then return end
+        return 
+    end
+    local inventorySlot = slotInfo.inventorySlot
+    local bag = slotInfo.bag
+    local slotIndex = slotInfo.slotIndex
     
-			local backpackSlotIndex = FindFirstEmptySlotInBag(BAG_BACKPACK)
-			local stackSize, maxStackSize = GetSlotStackSize(bag, slotIndex)
-			local quantity = math.min(stackSize, maxStackSize)
-			
-			if IsProtectedFunction("RequestMoveItem") then
-				CallSecureProtected("RequestMoveItem", bag, slotIndex, BAG_BACKPACK, backpackSlotIndex, quantity)
-			else
-				RequestMoveItem(bag, slotIndex, BAG_BACKPACK, backpackSlotIndex, quantity)
-			end
-			
-			-- Listen for guild bank slot updates
-			StartWaitingForBank(BAG_BACKPACK, backpackSlotIndex, BAG_GUILDBANK)
-			
-			TransferToGuildBank(BAG_BACKPACK, backpackSlotIndex)
-		end,
-		"primary"
-	)
-	
-	--[[ Retrieve and Deposit ]]--
-	local actionName = SI_CBE_CRAFTBAG_BANK_DEPOSIT
-	slotInfo.slotActions:AddSlotAction(
-		actionName,  
-		function()
-		
-			if not ValidateFreeSlots(bag, slotIndex) then return end
-			
-			CBE.Inventory:StartTransfer(inventorySlot, actionName, SI_ITEM_ACTION_BANK_DEPOSIT,
-				function()
-					local info = CBE.Inventory.waitingForTransfer
-					if not info then return end
-			
-					-- Listen for guild bank slot updates
-					StartWaitingForBank(info.targetBag, info.targetSlotIndex, BAG_GUILDBANK)
-					
-					TransferToGuildBank(info.targetBag, info.targetSlotIndex)
-				end
-			)
-		end	,
-		"keybind1"
-	)
+    --[[ Deposit ]]--
+    slotInfo.slotActions:AddSlotAction(
+        SI_BANK_DEPOSIT,  
+        function() 
+            if not ValidateFreeSlots(bag, slotIndex) then 
+                CBE:Debug("free slot validation failed for bag "..tostring(bag).." index "..tostring(slotIndex), self.debug)
+                return
+            end
+    
+            local backpackSlotIndex = FindFirstEmptySlotInBag(BAG_BACKPACK)
+            local stackSize, maxStackSize = GetSlotStackSize(bag, slotIndex)
+            local quantity = math.min(stackSize, maxStackSize)
+            
+            -- Register the callback that will run after the stack makes its
+            -- way to the backpack.
+            if not CBE.Inventory:StartWaitingForTransfer(bag, slotIndex, 
+                function(transferItem)
+                                    
+                    if not transferItem then
+                        CBE:Debug(self.name..":OnBackpackTransferComplete did not receive its transferItem parameter", self.debug)
+                    end
+
+                    -- Listen for guild bank slot updates
+                    CBE:Debug("bank transfer enqueue: "..tostring(transferItem.targetBag)..", "..tostring(transferItem.targetSlotIndex)..", "..tostring(transferItem.quantity)..", "..BAG_GUILDBANK, self.debug)
+                    self.bankTransferQueue:Enqueue(transferItem.targetBag, transferItem.targetSlotIndex, transferItem.quantity, BAG_GUILDBANK)
+                    
+                    TransferToGuildBank(transferItem.targetBag, transferItem.targetSlotIndex)
+                end, quantity) then 
+                CBE:Debug("enqueue failed for bag "..tostring(bag).." index "..tostring(slotIndex), self.debug)
+                return 
+            end
+            
+            -- Initiate the stack move to the backpack
+            if IsProtectedFunction("RequestMoveItem") then
+                CallSecureProtected("RequestMoveItem", bag, slotIndex, BAG_BACKPACK, backpackSlotIndex, quantity)
+            else
+                RequestMoveItem(bag, slotIndex, BAG_BACKPACK, backpackSlotIndex, quantity)
+            end
+        end,
+        "primary"
+    )
+    
+    --[[ Retrieve and Deposit ]]--
+    local actionName = SI_CBE_CRAFTBAG_BANK_DEPOSIT
+    slotInfo.slotActions:AddSlotAction(
+        actionName,  
+        function()
+            if not ValidateFreeSlots(bag, slotIndex) then return end
+            
+            CBE.Inventory:StartTransfer(inventorySlot, actionName, SI_ITEM_ACTION_BANK_DEPOSIT,
+                function(transferItem)
+                                    
+                    if not transferItem then
+                        CBE:Debug(self.name..":OnBackpackTransferComplete did not receive its transferItem parameter", self.debug)
+                    end
+
+                    -- Listen for guild bank slot updates
+                    CBE:Debug("bank transfer enqueue: "..tostring(transferItem.targetBag)..", "..tostring(transferItem.targetSlotIndex)..", "..tostring(transferItem.quantity)..", "..BAG_GUILDBANK, self.debug)
+                    self.bankTransferQueue:Enqueue(transferItem.targetBag, transferItem.targetSlotIndex, transferItem.quantity, BAG_GUILDBANK)
+                    
+                    TransferToGuildBank(transferItem.targetBag, transferItem.targetSlotIndex)
+                end)
+        end,
+        "keybind1"
+    )
 end
