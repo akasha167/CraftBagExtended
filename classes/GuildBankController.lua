@@ -10,6 +10,7 @@ function CBE_GuildBankController:Initialize()
 
     self.name = "CBE_GuildBankController"
     self.bankTransferQueue = CBE_TransferQueue:New(self.name.."Queue")
+    self.withdrawalQueue = CBE_TransferQueue:New(self.name.."WithdrawalQueue")
     self.debug = false
     
     -- used by SwitchScene() below
@@ -156,16 +157,66 @@ function CBE_GuildBankController:Initialize()
     end
     EVENT_MANAGER:RegisterForEvent(self.name, EVENT_GUILD_BANK_TRANSFER_ERROR, OnBankTransferFailed)
     
-    --[[ Listen for new slot updates to the craft bag when on the guild bank 
-         withdrawal screen. ]]
-    local function OnInventorySlotUpdated(eventCode, bagId, slotId, isNewItem, itemSoundCategory, updateReason)
-        if bagId ~= BAG_VIRTUAL or GetInteractionType() ~= INTERACTION_GUILDBANK then return end
-        local guildBankMenuButton = ZO_GuildBankMenuBar.m_object.m_clickedButton
-        if guildBankMenuButton.m_buttonData.descriptor ~= SI_BANK_WITHDRAW  then return end
+    
+    
+    --[[ FEATURE: DISABLE GUILD BANK AUTO-STASH TO CRAFT BAG ON WITHDRAWAL ]]--
+    
+    
+    --[[ Listen for new guild bank craft material withdrawals and add them to 
+         the pending withdrawal queue ]]
+    local function OnGuildBankWithdrawal(slotId)
+    
+        local isVirtual = CanItemBeVirtual(BAG_GUILDBANK, slotId)
+        CBE:Debug("Slot id "..tostring(slotId).." is virtual: "..tostring(isVirtual), self.debug)
+        CBE:Debug("guildBankAutoStashOff: "..tostring(CBE.Settings.settings.guildBankAutoStashOff), self.debug)
         
-        CBE:Debug("slotId: "..tostring(slotId)..", isNewItem: "..tostring(isNewItem)..", updateReason: "..updateReason, self.debug)
+        -- When auto-stash is off, watch for craft item withdrawals from the guild bank
+        if not CBE.Settings.settings.guildBankAutoStashOff or not CanItemBeVirtual(BAG_GUILDBANK, slotId) then return end
+        
+        -- Save the withdrawal transferItem information to the queue
+        self.withdrawalQueue:Enqueue(BAG_GUILDBANK, slotId, nil, BAG_VIRTUAL)
+    end
+    ZO_PreHook("TransferFromGuildBank", OnGuildBankWithdrawal)
+    
+    --[[ Process new craft bag slot updates that match stacks in the withdrawal
+         queue by sending them back to the backpack. ]]
+    local function OnInventorySlotUpdated(eventCode, bagId, slotId, isNewItem, itemSoundCategory, updateReason)
+    
+        if not CBE.Settings.settings.guildBankAutoStashOff then return end
+        
+        -- Make a craft bag item slot was just updated, and that we have guild
+        -- bank crafting items in the guild bank withdrawal queue.
+        if bagId ~= BAG_VIRTUAL or not self.withdrawalQueue:HasItems() then return end
+        
+        -- Try to find this specific craft bag item in the withdrawal queue
+        local transferItem = self.withdrawalQueue:Dequeue(bagId, slotId)
+        if not transferItem then return end
+        
+        -- Find the first free slot in the backpack
+        local backpackSlotIndex = FindFirstEmptySlotInBag(BAG_BACKPACK)
+        if not backpackSlotIndex then
+            ZO_AlertEvent(EVENT_INVENTORY_IS_FULL, 1, 0)
+            return
+        end
+        
+        -- Refresh the tooltip counts once the stack makes it's way to the backpack
+        CBE.Inventory:StartWaitingForTransfer(bagId, slotId, 
+            function() CBE.Inventory:RefreshActiveTooltip() end, transferItem.quantity)
+        
+        -- Initiate the stack move to the backpack
+        if IsProtectedFunction("RequestMoveItem") then
+            CallSecureProtected("RequestMoveItem", bagId, slotId, BAG_BACKPACK, backpackSlotIndex, transferItem.quantity)
+        else
+            RequestMoveItem(bagId, slotId, BAG_BACKPACK, backpackSlotIndex, transferItem.quantity)
+        end
+        
+        CBE:Debug("Transferring "..tostring(transferItem.quantity).." of "..transferItem.itemLink.." in craft bag slotId "..tostring(slotId).." back to backpack slot "..tostring(backpackSlotIndex)..", isNewItem: "..tostring(isNewItem)..", updateReason: "..updateReason, self.debug)
     end
     EVENT_MANAGER:RegisterForEvent(self.name, EVENT_INVENTORY_SINGLE_SLOT_UPDATE, OnInventorySlotUpdated)
+    
+    --[[ END FEATURE ]]--
+    
+    
 
     --[[ Handles bank item slot update events thrown from a "Deposit" action. ]]
     local function OnBankSlotUpdated(eventCode, slotId)

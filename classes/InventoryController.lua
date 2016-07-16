@@ -181,6 +181,7 @@ function CBE_InventoryController:RefreshActiveTooltip()
     if not mouseOverControl or mouseOverControl.slotControlType ~= "listSlot" then return end
     local inventorySlot = mouseOverControl:GetNamedChild("Button")
     if inventorySlot then
+        CBE:Debug("Active tooltip refreshed", self.debug)
         ZO_InventorySlot_OnMouseEnter(inventorySlot)
     end
 end

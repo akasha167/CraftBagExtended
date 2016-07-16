@@ -18,15 +18,26 @@ function CBE_TransferQueue:Clear()
     self.items = {}
 end
 
+function CBE_TransferQueue:GetKey(itemId, quantity, bag)
+
+    -- Craft bag doesn't have proper stacks, so don't bother matching by quantity
+    if bag == BAG_VIRTUAL then
+        return tostring(itemId)
+    end
+    
+    -- Everything else, match by id and quantity
+    return tostring(itemId).."-"..tostring(quantity)
+end
+
 function CBE_TransferQueue:SetQuantity(transferItem, quantity)
-    local oldKey = tostring(transferItem.itemId).."-"..tostring(transferItem.quantity)
+    local oldKey = self:GetKey(transferItem.itemId, transferItem.quantity)
     
     if not self.items[oldKey] or #(self.items[oldKey]) == 0 then
         CBE:Debug(self.name..": failed to find entry with key "..oldKey.." when setting quantity to "..tostring(quantity))
         return
     end
     
-    local newKey = tostring(transferItem.itemId).."-"..tostring(quantity)
+    local newKey = self:GetKey(transferItem.itemId, quantity)
     if not self.items[newKey] then
         self.items[newKey] = {}
     end
@@ -40,12 +51,12 @@ function CBE_TransferQueue:Dequeue(bag, slotIndex, quantity)
     local itemId
     _, _, _, itemId = ZO_LinkHandler_ParseLink( itemLink )
     
-    if not quantity then
+    if not quantity and bag ~= BAG_VIRTUAL then
         local stackSize, maxStackSize = GetSlotStackSize(bag, slotIndex)
         quantity = math.min(stackSize, maxStackSize)
     end
     
-    local key = tostring(itemId).."-"..tostring(quantity)
+    local key = self:GetKey(itemId, quantity, bag)
     if not self.items[key] then
         CBE:Debug(self.name..": dequeue failed for "..itemLink.." id "..tostring(itemId).." bag "..tostring(bag).." slot "..tostring(slotIndex).." qty "..tostring(quantity))
         return nil
@@ -69,6 +80,7 @@ function CBE_TransferQueue:Enqueue(bag, slotIndex, quantity, targetBag, callback
         bag       = bag,
         slotIndex = slotIndex,
         itemId    = itemId,
+        itemLink  = itemLink,
         quantity  = quantity,
         targetBag = targetBag,
         callback  = callback
@@ -77,7 +89,7 @@ function CBE_TransferQueue:Enqueue(bag, slotIndex, quantity, targetBag, callback
         CBE:Debug(self.name..": null callback passed to enqueue for bag "..tostring(bag).." slot "..tostring(slotIndex).." qty "..tostring(quantity))
     end
     
-    local key = tostring(itemId).."-"..tostring(quantity)
+    local key = self:GetKey(itemId, quantity, targetBag)
     if not self.items[key] then
         self.items[key] = {}
     end

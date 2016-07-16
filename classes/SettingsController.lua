@@ -10,7 +10,7 @@ function CBE_SettingsController:Initialize()
 
     self.name = "CBE_SettingsController"
     self.defaults = {
-        disableGuildBankWithdrawalAutoStash = false
+        guildBankAutoStashOff = false
     }
     self.settings = ZO_SavedVars:NewAccountWide("CraftBagExtended_Data", 1, nil, self.defaults)
 
@@ -34,9 +34,9 @@ function CBE_SettingsController:Initialize()
             type = "checkbox",
             name = GetString(SI_CBE_DISABLE_GUILDBANK_WITHDRAWAL_AUTO_STASH),
             tooltip = GetString(SI_CBE_DISABLE_GUILDBANK_WITHDRAWAL_AUTO_STASH_TOOLTIP),
-            getFunc = function() return self.settings.disableGuildBankWithdrawalAutoStash end,
-            setFunc = function(value) self.settings.disableGuildBankWithdrawalAutoStash = value end,
-            default = self.defaults.disableGuildBankWithdrawalAutoStash,
+            getFunc = function() return self.settings.guildBankAutoStashOff end,
+            setFunc = function(value) self.settings.guildBankAutoStashOff = value end,
+            default = self.defaults.guildBankAutoStashOff,
         },
     }
     LAM2:RegisterOptionControls(CBE.name, optionsTable)
