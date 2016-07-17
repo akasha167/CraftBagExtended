@@ -17,18 +17,16 @@ function CBE_GuildBankController:Initialize()
     local guildBankFragments = {
         [SI_BANK_WITHDRAW] = { GUILD_BANK_FRAGMENT },
         [SI_BANK_DEPOSIT]  = { INVENTORY_FRAGMENT, BACKPACK_GUILD_BANK_LAYOUT_FRAGMENT },
-        [SI_INVENTORY_MODE_CRAFT_BAG] = { CRAFT_BAG_FRAGMENT },
+        [SI_INVENTORY_MODE_CRAFT_BAG] = { CRAFT_BAG_FRAGMENT, BACKPACK_GUILD_BANK_LAYOUT_FRAGMENT },
     }
-    
-    -- used by OnGuildBankSceneStateChange() below
-    local anchors = { }
     
     --[[ Removes and adds the appropriate window fragments to display the given tabs. ]]
     local function SwitchScene(oldScene, newScene) 
     
-        -- Remove the old tab's fragments
+        -- Remove the old tab's fragments in reverse order
         local removeFragments = guildBankFragments[oldScene]
-        for i,removeFragment in pairs(removeFragments) do
+        for i=#removeFragments,1,-1 do
+            local removeFragment = removeFragments[i]
             SCENE_MANAGER:RemoveFragment(removeFragment)
         end
         
@@ -68,49 +66,11 @@ function CBE_GuildBankController:Initialize()
 
     --[[ Handle guild bank screen open/close events ]]
     local function OnGuildBankSceneStateChange(oldState, newState)
-        local anchorTemplate
-        
-        -- On enter, set craft bag window anchors to be the same as the guild 
-        -- bank window's anchors
-        if(newState == SCENE_SHOWING) then
-            anchorTemplate = ZO_GuildBank:GetName()
-            
-        -- On exit, stop any outstanding transfers and restore craft bag window 
+        -- On exit, stop any outstanding transfers
         -- anchors.
-        elseif(newState == SCENE_HIDDEN) then
+        if(newState == SCENE_HIDDEN) then
             CBE.Inventory.backpackTransferQueue:Clear()
             self.bankTransferQueue:Clear()
-            anchorTemplate = ZO_CraftBag:GetName()
-        else
-            return
-        end
-        
-        --[[ Hacky way to adjust the craft bag window position when guild bank 
-             scene is opened/closed.
-             Probably better to use backpack layout fragments in the future.
-             See EsoUI/ingame/inventory/backpacklayouts.lua for examples. ]]
-        ZO_CraftBag:ClearAnchors()
-        for i=0,1 do
-            local anchor = anchors[anchorTemplate][i]
-            ZO_CraftBag:SetAnchor(anchor.point, anchor.relativeTo, anchor.relativePoint, anchor.offsetX, anchor.offsetY)
-        end
-    end
-    
-    --[[ Save anchor positions for the guild bank and craft bag windows for use
-         on open/close events. ]]
-    local windowAnchorsToSave = { ZO_GuildBank, ZO_CraftBag }
-    for i,window in pairs(windowAnchorsToSave) do
-        local windowAnchors = {}
-        for j=0,1 do
-            local isValidAnchor, point, relativeTo, relativePoint, offsetX, offsetY = window:GetAnchor(j)
-            windowAnchors[j] = {
-                point = point,
-                relativeTo = relativeTo,
-                relativePoint = relativePoint,
-                offsetX = offsetX,
-                offsetY = offsetY,    
-            }
-            anchors[window:GetName()] = windowAnchors
         end
     end
     SCENE_MANAGER.scenes["guildBank"]:RegisterCallback("StateChange",  OnGuildBankSceneStateChange)

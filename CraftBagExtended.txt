@@ -1,7 +1,7 @@
 ## Title: |cC8C800Craft Bag Extended|r
 ## Author: |c99CCEFsilvereyes|r
 ## Description: Adds ESO+ craft bag to guild bank & mail; allows disabling auto-stash for guild bank withdrawals.
-## Version: 1.2.0
+## Version: 1.2.1
 ## APIVersion: 100015
 ## SavedVariables: CraftBagExtended_Data
 
