@@ -198,10 +198,14 @@ function CBE_GuildBankController:Initialize()
 end
 
 --[[ Checks to ensure that there is a free inventory slot available in both the
-     backpack and in the guild bank. If there is, returns true.  If not, an 
+     backpack and in the guild bank, and that there is a selected guild with
+     a guild bank and deposit permissions. If there is, returns true.  If not, an 
      alert is raised and returns false. ]]
-local function ValidateFreeSlots(bag, slotIndex)
+local function ValidateCanDeposit(bag, slotIndex)
     if bag ~= BAG_VIRTUAL then return false end
+        
+    local guildId = GetSelectedGuildBankId()
+    if not guildId then return false end
     
     -- Don't transfer if you don't have enough free slots in the guild bank
     if GetNumBagFreeSlots(BAG_GUILDBANK) < 1 then
@@ -215,10 +219,28 @@ local function ValidateFreeSlots(bag, slotIndex)
         return false
     end
     
-    return true
-end
+    -- Don't transfer if the guild member doesn't have deposit permissions
+	if(not DoesPlayerHaveGuildPermission(guildId, GUILD_PERMISSION_BANK_DEPOSIT)) then
+		ZO_AlertEvent(EVENT_GUILD_BANK_TRANSFER_ERROR, GUILD_BANK_NO_DEPOSIT_PERMISSION)
+		return false
+	end
 
-                
+	-- Don't transfer if the guild doesn't have 10 members
+	if(not DoesGuildHavePrivilege(guildId, GUILD_PRIVILEGE_BANK_DEPOSIT)) then
+		ZO_AlertEvent(EVENT_GUILD_BANK_TRANSFER_ERROR, GUILD_BANK_GUILD_TOO_SMALL)
+		return false
+	end
+
+	-- Don't transfer stolen items.  Shouldn't come up from this addon, since
+	-- the craft bag filters stolen items out when in the guild bank. However,
+	-- good to check anyways in case some other addon uses this class.
+	if(IsItemStolen(sourceBag, sourceSlot)) then
+		ZO_AlertEvent(EVENT_GUILD_BANK_TRANSFER_ERROR, GUILD_BANK_NO_DEPOSIT_STOLEN_ITEM)
+		return false
+	end
+    
+    return true
+end           
 
 --[[ Adds guildbank-specific inventory slot crafting bag actions ]]
 function CBE_GuildBankController:AddSlotActions(slotInfo)
@@ -237,7 +259,7 @@ function CBE_GuildBankController:AddSlotActions(slotInfo)
     slotInfo.slotActions:AddSlotAction(
         SI_BANK_DEPOSIT,  
         function() 
-            if not ValidateFreeSlots(bag, slotIndex) then 
+            if not ValidateCanDeposit(bag, slotIndex) then 
                 CBE:Debug("free slot validation failed for bag "..tostring(bag).." index "..tostring(slotIndex), self.debug)
                 return
             end
@@ -280,7 +302,7 @@ function CBE_GuildBankController:AddSlotActions(slotInfo)
     slotInfo.slotActions:AddSlotAction(
         actionName,  
         function()
-            if not ValidateFreeSlots(bag, slotIndex) then return end
+            if not ValidateCanDeposit(bag, slotIndex) then return end
             
             CBE.Inventory:StartTransfer(inventorySlot, actionName, SI_ITEM_ACTION_BANK_DEPOSIT,
                 function(transferItem)
