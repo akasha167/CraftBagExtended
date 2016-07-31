@@ -28,8 +28,16 @@ function CBE_InventoryController:Initialize()
     local function PreDiscoverSlotActions(inventorySlot, slotActions) 
     
 		if not inventorySlot then return end
+		
+        local slotType = ZO_InventorySlot_GetType(inventorySlot)
     
-        local bag, slotIndex = ZO_Inventory_GetBagAndIndex(inventorySlot)
+        local bag, slotIndex
+        if slotType == SLOT_TYPE_MY_TRADE then
+            local tradeIndex = ZO_Inventory_GetSlotIndex(inventorySlot)
+            bag, slotIndex = GetTradeItemBagAndSlot(TRADE_ME, tradeIndex)
+        else
+            bag, slotIndex = ZO_Inventory_GetBagAndIndex(inventorySlot)
+        end
         
         -- We don't have any slot actions for bags other than the backpack, the
         -- craft bag, and the guild bank.
@@ -43,9 +51,8 @@ function CBE_InventoryController:Initialize()
         if not slotData then return end
 		
         local fromCraftBag = slotData.fromCraftBag
-        local slotType = ZO_InventorySlot_GetType(inventorySlot)
         
-        if slotType == SLOT_TYPE_CRAFT_BAG_ITEM or slotType == SLOT_TYPE_MAIL_QUEUED_ATTACHMENT or fromCraftBag then
+        if slotType == SLOT_TYPE_CRAFT_BAG_ITEM or slotType == SLOT_TYPE_MAIL_QUEUED_ATTACHMENT or slotType == SLOT_TYPE_MY_TRADE or fromCraftBag then
             local slotInfo = { 
                 inventorySlot = inventorySlot,
                 slotType      = slotType, 
@@ -56,6 +63,7 @@ function CBE_InventoryController:Initialize()
             }
             CBE.Mail:AddSlotActions(slotInfo)
             CBE.GuildBank:AddSlotActions(slotInfo)
+            CBE.Trade:AddSlotActions(slotInfo)
         end
     end
     ZO_PreHook("ZO_InventorySlot_DiscoverSlotActionsFromActionList", PreDiscoverSlotActions)

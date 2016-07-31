@@ -2,7 +2,7 @@ CBE = {
     name = "CraftBagExtended",
     title = GetString(SI_CBE),
     author = "|c99CCEFsilvereyes|r",
-    version = "1.3.0",
+    version = "1.4.0",
     debug = false,
 }
 
@@ -36,6 +36,7 @@ local function OnAddonLoaded(event, name)
     CBE.Settings  = CBE_SettingsController:New()
     CBE.GuildBank = CBE_GuildBankController:New()
     CBE.Mail      = CBE_MailController:New()
+    CBE.Trade     = CBE_TradeController:New()
     CBE.Inventory = CBE_InventoryController:New()
     
 end
