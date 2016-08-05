@@ -6,6 +6,11 @@ function CBE_InventoryController:New(...)
     return controller
 end
 
+-- Stores the additionalFilter function of the craft bag inventory the first
+-- time that a backpack layout is applied to ZO_CraftBag
+local baseCraftBagFilter
+local originalApplySharedBagLayout = PLAYER_INVENTORY.ApplySharedBagLayout
+
 function CBE_InventoryController:Initialize()
 
     self.name = "CBE_InventoryController"
@@ -22,6 +27,18 @@ function CBE_InventoryController:Initialize()
         end
     end
     ZO_PreHook("ZO_Alert", OnTransferDialogFailed)
+    
+    --[[ Do not add duplicate inventory slot context menu actions with the same
+         names ]]
+    local function PreAddSlotAction(slotActions, actionStringId, actionCallback, actionType, visibilityFunction, options)
+        local actionName = GetString(actionStringId)
+        for i=1,slotActions:GetNumSlotActions() do
+            local action = slotActions:GetSlotAction(i)
+            if action and action[1] == actionName then
+                return true
+            end
+        end
+    end
     
     --[[ Insert our custom craft bag actions into the keybind buttons and 
          context menu whenever an item is hovered. ]]
@@ -65,8 +82,39 @@ function CBE_InventoryController:Initialize()
             CBE.GuildBank:AddSlotActions(slotInfo)
             CBE.Trade:AddSlotActions(slotInfo)
         end
+        
+        -- Disallow duplicates with same names
+        ZO_PreHook(slotActions, "AddSlotAction", PreAddSlotAction)
     end
     ZO_PreHook("ZO_InventorySlot_DiscoverSlotActionsFromActionList", PreDiscoverSlotActions)
+    
+    
+    --[[ Workaround for IsItemBound() not working on craft bag slots ]]
+    local isItemBound = _G["IsItemBound"]
+    _G["IsItemBound"] = function(bagId, slotIndex)
+        if bagId == BAG_VIRTUAL then
+            local itemLink = GetItemLink(bagId, slotIndex)
+            local bindType = GetItemLinkBindType(itemLink)
+            if bindType == BIND_TYPE_ON_PICKUP or bindType == BIND_TYPE_ON_PICKUP_BACKPACK then
+                return true
+            end
+        end
+        return isItemBound(bagId, slotIndex)
+    end
+    
+    
+    --[[ Pre-hook for PLAYER_INVENTORY:ApplySharedBagLayout. Used to hook the
+         craft bag inventory additionalFilter the first time that a backpack layout
+         is applied. ]]
+    local function PreApplySharedBagLayout(inventoryManager, inventoryControl, layoutData)
+        if inventoryControl ~= ZO_CraftBag then return end
+        local inventory = inventoryManager.inventories[INVENTORY_CRAFT_BAG]
+        baseCraftBagFilter = inventory.additionalFilter
+        inventory.additionalFilter = CBE_InventoryController_AdditionalCraftBagFilter
+        -- unhook ApplySharedBagLayout
+        inventoryManager.ApplySharedBagLayout = originalApplySharedBagLayout
+    end
+    ZO_PreHook(PLAYER_INVENTORY, "ApplySharedBagLayout", PreApplySharedBagLayout)
     
 
     --[[ Handles backpack item slot update events thrown from a "Retrieve" 
@@ -276,4 +324,18 @@ function CBE_InventoryController:TransferToCraftBag(bag, slotIndex)
     else
         RequestMoveItem(bag, slotIndex, BAG_VIRTUAL, targetSlotIndex, quantity)
     end
+end
+
+--[[ Run on inventory slots when determining if they should be added to the 
+     ZO_CraftBag control. Applies backpack layouts with filters to craft bag ]]
+function CBE_InventoryController_AdditionalCraftBagFilter(slot)
+    -- Exclude all items that are not crafting mats
+    if type(baseCraftBagFilter)=="function" and not baseCraftBagFilter(slot) then
+        return false
+    end
+    local layout = PLAYER_INVENTORY.appliedLayout
+    if layout and type(layout.additionalFilter) == "function" and not layout.additionalFilter(slot) then
+        return false
+    end
+    return true
 end

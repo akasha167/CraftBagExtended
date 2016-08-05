@@ -297,7 +297,7 @@ function CBE_GuildBankController:AddSlotActions(slotInfo)
         "primary"
     )
     
-    --[[ Retrieve and Deposit ]]--
+    --[[ Deposit quantity ]]--
     local actionName = SI_CBE_CRAFTBAG_BANK_DEPOSIT
     slotInfo.slotActions:AddSlotAction(
         actionName,  

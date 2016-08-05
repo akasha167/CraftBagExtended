@@ -1,75 +1,13 @@
-CBE_MailController = ZO_Object:Subclass()
-
-function CBE_MailController:New(...)
-    local controller = ZO_Object.New(self)
-    controller:Initialize(...)
-    return controller
-end
+CBE_MailController = CBE_Controller:Subclass()
 
 local name = "CBE_MailController"
 local debug = false
 
-function CBE_MailController:Initialize()
-
-    self.name = name
-
-    --[[ Button click callback for toggling between backpack and craft bag. ]]
-    local function OnCraftBagMenuButtonClicked(buttonData, playerDriven)
-        if MAIL_SEND_SCENE.state ~= SCENE_SHOWN then
-            return
-        end
-        if buttonData.descriptor == SI_INVENTORY_MODE_CRAFT_BAG then
-            ZO_PlayerInventory:SetHidden(true)
-            ZO_PlayerInventoryInfoBar:SetParent(ZO_CraftBag)
-            SCENE_MANAGER:AddFragment(CRAFT_BAG_FRAGMENT)
-        else
-            SCENE_MANAGER:RemoveFragment(CRAFT_BAG_FRAGMENT)
-            ZO_PlayerInventoryInfoBar:SetParent(ZO_PlayerInventory)
-            PLAYER_INVENTORY:UpdateList(INVENTORY_BACKPACK, true)
-            ZO_PlayerInventory:SetHidden(false)
-        end
-    end
-    
-    --[[ Handle mail send scene open/close events ]]
-    local function OnMailSendSceneStateChange(oldState, newState)
-    
-        -- On exit, remove additional craft bag filtering, and stop listening for any transfers
-        if newState == SCENE_HIDDEN then 
-            PLAYER_INVENTORY.inventories[INVENTORY_CRAFT_BAG].additionalFilter = nil
-            CBE.Inventory.backpackTransferQueue:Clear()    
-            return 
-            
-        -- On enter, add filtering for the craft bag to exclude bound, stolen, and locked items
-        elseif newState == SCENE_SHOWING then
-            PLAYER_INVENTORY.inventories[INVENTORY_CRAFT_BAG].additionalFilter =  
-                function(slot)
-                    -- Workaround for IsItemBound() not working on craft bag slots
-                    local itemLink = GetItemLink(slot.bagId, slot.slotIndex)
-                    local bindType = GetItemLinkBindType(itemLink)
-                    local isBound = (bindType == BIND_TYPE_ON_PICKUP or bindType == BIND_TYPE_ON_PICKUP_BACKPACK)
-                    local isValid = (not isBound) 
-                                    and (not slot.stolen) 
-                                    and (not slot.isPlayerLocked)
-                    return isValid
-                end
-            return
-        
-        -- Since reopening the mail send scene causes the inventory list to show regardless of 
-        -- whether the craft bag was open when it last closed, we need to initialize the craft bag.
-        elseif newState == SCENE_SHOWN then
-            local button = CBE_MailSendMenu.m_object.m_clickedButton
-            if not button then return end
-            OnCraftBagMenuButtonClicked(button.m_buttonData, false)
-        end
-    end
-    MAIL_SEND_SCENE:RegisterCallback("StateChange",  OnMailSendSceneStateChange)
-
-    --[[ Create craft bag menu ]]
-    local menuBar = CreateControlFromVirtual("CBE_MailSendMenu", ZO_MailSend, "ZO_LabelButtonBar")
-    menuBar:SetAnchor(TOPRIGHT, ZO_MailSend, TOPLEFT, ZO_MailSendTo:GetWidth(), 22)
-    CBE:AddItemsButton(menuBar, OnCraftBagMenuButtonClicked)
-    CBE:AddCraftBagButton(menuBar, OnCraftBagMenuButtonClicked)
-    ZO_MenuBar_SelectFirstVisibleButton(menuBar, true)
+function CBE_MailController:New(...)
+    local controller = CBE_Controller.New(self, 
+        name, "mailSend", ZO_MailSend, BACKPACK_MAIL_LAYOUT_FRAGMENT)
+    controller.menu:SetAnchor(TOPRIGHT, ZO_MailSend, TOPLEFT, ZO_MailSendTo:GetWidth(), 22)
+    return controller
 end
 
 --[[ Returns true if the mail send interface is currently open. Otherwise returns false. ]]
@@ -173,7 +111,7 @@ function CBE_MailController:AddSlotActions(slotInfo)
     if IsAttached(slotInfo.bag, slotInfo.slotIndex) then
         if slotInfo.fromCraftBag then
             slotInfo.slotActions:AddSlotAction(
-                SI_CBE_CRAFTBAG_MAIL_DETACH, 
+                SI_ITEM_ACTION_MAIL_DETACH, 
                 function() 
                     local attachmentSlotIndex = 
                         GetAttachmentSlotIndex(slotInfo.bag, slotInfo.slotIndex)
@@ -188,7 +126,7 @@ function CBE_MailController:AddSlotActions(slotInfo)
         
     --[[ Retrieve and Add to Mail ]]
     elseif slotInfo.slotType == SLOT_TYPE_CRAFT_BAG_ITEM then
-        local actionName = SI_CBE_CRAFTBAG_MAIL_ATTACH
+        local actionName = SI_ITEM_ACTION_MAIL_ATTACH
         slotInfo.slotActions:AddSlotAction(
             actionName, 
             function() 

@@ -1,4 +1,10 @@
-ZO_CreateStringId("SI_CBE", "|c99CCEFErweiterter Handwerkstasche|r")
-ZO_CreateStringId("SI_CBE_AND", " und ")
-ZO_CreateStringId("SI_CBE_DISABLE_GUILDBANK_WITHDRAWAL_AUTO_STASH", "Deaktivieren Sie die automatische Gildebank Handwerk Taschentransport")
-ZO_CreateStringId("SI_CBE_DISABLE_GUILDBANK_WITHDRAWAL_AUTO_STASH_TOOLTIP", "Wenn sie aktiviert ist , von einer Gildebank Handwerksmaterialien  Abziehen werden die Materialien in Ihrem Rucksack halten. Sie werden nicht automatisch auf Ihr ESO + Handwerk Beutel überführt werden.")
+local strings = {
+    ["SI_CBE_AND"]                                             = " und ",
+    ["SI_CBE_DISABLE_GUILDBANK_WITHDRAWAL_AUTO_STASH"]         = "Handwerksbeutel in Gildenbank Ã¼bergehen",
+    ["SI_CBE_DISABLE_GUILDBANK_WITHDRAWAL_AUTO_STASH_TOOLTIP"] = "Ist diese Option aktiviert, so werden die Materialien aus der Gildenbank nicht in den Handwerksbeutel transferiert, sondern bleiben in Ihrem Inventar. Die Materialien werden also nicht automatisch auf Ihr ESO + Handwerk Beutel Ã¼berfÃ¼hrt werden."
+}
+
+-- Overwrite English strings
+for stringId, value in pairs(strings) do
+    CBE_STRINGS[stringId] = value
+end

@@ -2,11 +2,11 @@ CBE = {
     name = "CraftBagExtended",
     title = GetString(SI_CBE),
     author = "|c99CCEFsilvereyes|r",
-    version = "1.4.0",
+    version = "1.5.0",
     debug = false,
 }
 
-local function CreateButtonData(descriptor, tabIconCategory, callback)
+local function CreateButtonData(menuBar, descriptor, tabIconCategory, callback)
     local iconTemplate = "EsoUI/Art/Inventory/inventory_tabIcon_<<1>>_<<2>>.dds"
     return {
         normal = zo_strformat(iconTemplate, tabIconCategory, "up"),
@@ -14,7 +14,8 @@ local function CreateButtonData(descriptor, tabIconCategory, callback)
         highlight = zo_strformat(iconTemplate, tabIconCategory, "over"),
         descriptor = descriptor,
         categoryName = descriptor,
-        callback = callback
+        callback = callback,
+        menu = menuBar
     }
 end
 
@@ -42,7 +43,7 @@ local function OnAddonLoaded(event, name)
 end
 
 function CBE:AddCraftBagButton(menuBar, callback)
-    local buttonData = CreateButtonData(SI_INVENTORY_MODE_CRAFT_BAG, "Craftbag", callback)
+    local buttonData = CreateButtonData(menuBar, SI_INVENTORY_MODE_CRAFT_BAG, "Craftbag", callback)
     buttonData.CustomTooltipFunction = GetCraftBagTooltip
     buttonData.statusIcon = GetCraftBagStatusIcon
     local button = ZO_MenuBar_AddButton(menuBar, buttonData)
@@ -50,8 +51,7 @@ function CBE:AddCraftBagButton(menuBar, callback)
 end
 
 function CBE:AddItemsButton(menuBar, callback)
-    local buttonData = CreateButtonData(SI_INVENTORY_MODE_ITEMS, "items", callback)
-    local name = SI_INVENTORY_MODE_ITEMS
+    local buttonData = CreateButtonData(menuBar, SI_INVENTORY_MODE_ITEMS, "items", callback)
     local button = ZO_MenuBar_AddButton(menuBar, buttonData)
     return button
 end
