@@ -39,6 +39,8 @@ function CBE_InventoryController:Initialize()
             end
         end
     end
+    -- Disallow duplicates with same names
+    ZO_PreHook(ZO_InventorySlotActions, "AddSlotAction", PreAddSlotAction)
     
     --[[ Insert our custom craft bag actions into the keybind buttons and 
          context menu whenever an item is hovered. ]]
@@ -82,9 +84,6 @@ function CBE_InventoryController:Initialize()
             CBE.GuildBank:AddSlotActions(slotInfo)
             CBE.Trade:AddSlotActions(slotInfo)
         end
-        
-        -- Disallow duplicates with same names
-        ZO_PreHook(slotActions, "AddSlotAction", PreAddSlotAction)
     end
     ZO_PreHook("ZO_InventorySlot_DiscoverSlotActionsFromActionList", PreDiscoverSlotActions)
     
