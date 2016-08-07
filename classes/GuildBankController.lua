@@ -30,13 +30,6 @@ function CBE_GuildBankController:Initialize()
             SCENE_MANAGER:RemoveFragment(removeFragment)
         end
         
-        -- Move the item count bar at the bottom to the correct window
-        if newScene == SI_INVENTORY_MODE_CRAFT_BAG then
-            ZO_PlayerInventoryInfoBar:SetParent(ZO_CraftBag)
-        elseif oldScene == SI_INVENTORY_MODE_CRAFT_BAG then
-            ZO_PlayerInventoryInfoBar:SetParent(ZO_PlayerInventory)
-        end
-        
         -- Add the new tab's fragments
         local addFragments = guildBankFragments[newScene]
         for i,addFragment in pairs(addFragments) do

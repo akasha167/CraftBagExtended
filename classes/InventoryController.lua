@@ -222,6 +222,28 @@ function CBE_InventoryController:Initialize()
         end
     end
     
+     --[[ Handle craft bag open/close events ]]
+    local function OnCraftBagFragmentStateChange(oldState, newState)
+        -- On craft bag exit, stop listening for any transfers
+        if newState == SCENE_FRAGMENT_HIDDEN then 
+            CBE.Inventory.backpackTransferQueue:Clear()
+            return 
+        -- On craft bag showing event, move the info bar to the craft bag
+        elseif newState == SCENE_FRAGMENT_SHOWING then
+            ZO_PlayerInventoryInfoBar:SetParent(ZO_CraftBag)
+        end
+    end
+    CRAFT_BAG_FRAGMENT:RegisterCallback("StateChange",  OnCraftBagFragmentStateChange)
+    
+     --[[ Handle player inventory open events ]]
+    local function OnInventoryFragmentStateChange(oldState, newState)
+        -- On enter, move the info bar back to the backpack, if not there already
+        if newState == SCENE_FRAGMENT_SHOWING then
+            ZO_PlayerInventoryInfoBar:SetParent(ZO_PlayerInventory)
+        end
+    end
+    INVENTORY_FRAGMENT:RegisterCallback("StateChange",  OnInventoryFragmentStateChange)
+    
 end
 
 --[[ Gets the config table for the "Retrieve" from craft bag dialog ]]

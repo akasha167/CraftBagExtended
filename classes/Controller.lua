@@ -12,24 +12,6 @@ function CBE_Controller:Initialize(name, sceneName, window, layoutFragment)
     self.window = window
     self.layoutFragment = layoutFragment
     
-    --[[ Handle mail send scene open/close events ]]
-    local function OnSceneStateChange(oldState, newState)
-    
-        -- On exit, remove additional craft bag filtering, and stop listening for any transfers
-        if newState == SCENE_HIDDEN then 
-            ZO_PlayerInventoryInfoBar:SetParent(self.infoBarParent)
-            CBE.Inventory.backpackTransferQueue:Clear()
-            self.infoBarParent = nil
-            return 
-            
-        -- On enter, remember the info bar parent, so we can reset it on exit
-        elseif newState == SCENE_SHOWING then
-            self.infoBarParent = ZO_PlayerInventoryInfoBar:GetParent()
-        end
-    end
-    
-    SCENE_MANAGER.scenes[self.sceneName]:RegisterCallback("StateChange",  OnSceneStateChange)
-    
     --[[ Create craft bag menu ]]
     self.menu = CreateControlFromVirtual(self.name.."Menu", self.window, "ZO_LabelButtonBar")
     self.menu.controller = self
@@ -55,9 +37,7 @@ function CBE_Controller_OnCraftBagMenuButtonClicked(buttonData, playerDriven)-- 
     if buttonData.descriptor == SI_INVENTORY_MODE_CRAFT_BAG then
         if CRAFT_BAG_FRAGMENT.state == "shown" then return end
         SwapFragments(scene, INVENTORY_FRAGMENT, CRAFT_BAG_FRAGMENT, self.layoutFragment)
-        ZO_PlayerInventoryInfoBar:SetParent(ZO_CraftBag)
     elseif CRAFT_BAG_FRAGMENT.state == "shown" then
         SwapFragments(scene, CRAFT_BAG_FRAGMENT, INVENTORY_FRAGMENT, self.layoutFragment)
-        ZO_PlayerInventoryInfoBar:SetParent(ZO_PlayerInventory)
     end
 end
