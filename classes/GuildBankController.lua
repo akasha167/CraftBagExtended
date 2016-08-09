@@ -124,10 +124,11 @@ function CBE_GuildBankController:Initialize()
         CBE:Debug("guildBankAutoStashOff: "..tostring(CBE.Settings.settings.guildBankAutoStashOff), self.debug)
         
         -- When auto-stash is off, watch for craft item withdrawals from the guild bank
-        if not CBE.Settings.settings.guildBankAutoStashOff or not isVirtual then return end
-        
-        -- Save the withdrawal transferItem information to the queue
-        self.withdrawalQueue:Enqueue(BAG_GUILDBANK, slotId, nil, BAG_VIRTUAL)
+        if CBE.Settings.settings.guildBankAutoStashOff 
+           and isVirtual and not (Roomba and Roomba.WorkInProgress()) 
+        then 
+            self.withdrawalQueue:Enqueue(BAG_GUILDBANK, slotId, nil, BAG_VIRTUAL)
+        end
     end
     ZO_PreHook("TransferFromGuildBank", OnGuildBankWithdrawal)
     

@@ -2,7 +2,7 @@ CBE = {
     name = "CraftBagExtended",
     title = GetString(SI_CBE),
     author = "|c99CCEFsilvereyes|r",
-    version = "1.5.1",
+    version = "1.5.2",
     debug = false,
 }
 

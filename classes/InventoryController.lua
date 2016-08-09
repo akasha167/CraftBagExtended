@@ -231,6 +231,9 @@ function CBE_InventoryController:Initialize()
         -- On craft bag showing event, move the info bar to the craft bag
         elseif newState == SCENE_FRAGMENT_SHOWING then
             ZO_PlayerInventoryInfoBar:SetParent(ZO_CraftBag)
+            if TweakIt and ExtendedInfoBar then
+                ExtendedInfoBar:SetParent(ZO_CraftBag)
+            end
         end
     end
     CRAFT_BAG_FRAGMENT:RegisterCallback("StateChange",  OnCraftBagFragmentStateChange)
@@ -240,6 +243,9 @@ function CBE_InventoryController:Initialize()
         -- On enter, move the info bar back to the backpack, if not there already
         if newState == SCENE_FRAGMENT_SHOWING then
             ZO_PlayerInventoryInfoBar:SetParent(ZO_PlayerInventory)
+            if TweakIt and ExtendedInfoBar then
+                ExtendedInfoBar:SetParent(ZO_PlayerInventory)
+            end
         end
     end
     INVENTORY_FRAGMENT:RegisterCallback("StateChange",  OnInventoryFragmentStateChange)
