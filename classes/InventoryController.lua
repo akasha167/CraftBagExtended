@@ -360,6 +360,12 @@ function CBE_InventoryController_AdditionalCraftBagFilter(slot)
     if type(baseCraftBagFilter)=="function" and not baseCraftBagFilter(slot) then
         return false
     end
+    -- Fix for awesome guild store
+    if AwesomeGuildStore and (SCENE_MANAGER.currentScene == TRADING_HOUSE_SCENE 
+                              or SCENE_MANAGER.currentScene == TRADING_HOUSE_GAMEPAD_SCENE)
+    then
+        return true
+    end
     local layout = PLAYER_INVENTORY.appliedLayout
     if layout and type(layout.additionalFilter) == "function" and not layout.additionalFilter(slot) then
         return false
