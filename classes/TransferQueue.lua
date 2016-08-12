@@ -1,24 +1,28 @@
-CBE_TransferQueue = ZO_Object:Subclass()
-CBE_QUANTITY_UNSPECIFIED = -1
+local cbe           = CraftBagExtended
+local util          = cbe.utility
+local class         = cbe.classes
+class.TransferQueue = ZO_Object:Subclass()
 
-function CBE_TransferQueue:New(...)
+function class.TransferQueue:New(...)
     local controller = ZO_Object.New(self)
     controller:Initialize(...)
     return controller
 end
 
-function CBE_TransferQueue:Initialize(name)
+function class.TransferQueue:Initialize(name, sourceBag, targetBag)
 
-    self.name = name or "CBE_TransferQueue"
+    self.name      = name or cbe.name .. "TransferQueue"
+    self.sourceBag = sourceBag or BAG_VIRTUAL
+    self.targetBag = targetBag or BAG_BACKPACK
     self:Clear()
 end
 
-function CBE_TransferQueue:Clear()
+function class.TransferQueue:Clear()
     self.itemCount = 0
     self.items = {}
 end
 
-function CBE_TransferQueue:GetKey(itemId, quantity, bag)
+function class.TransferQueue:GetKey(itemId, quantity, bag)
 
     -- Craft bag doesn't have proper stacks, so don't bother matching by quantity
     if bag == BAG_VIRTUAL then
@@ -29,11 +33,11 @@ function CBE_TransferQueue:GetKey(itemId, quantity, bag)
     return tostring(itemId).."-"..tostring(quantity)
 end
 
-function CBE_TransferQueue:SetQuantity(transferItem, quantity)
+function class.TransferQueue:SetQuantity(transferItem, quantity)
     local oldKey = self:GetKey(transferItem.itemId, transferItem.quantity)
     
     if not self.items[oldKey] or #(self.items[oldKey]) == 0 then
-        CBE:Debug(self.name..": failed to find entry with key "..oldKey.." when setting quantity to "..tostring(quantity))
+        util.Debug(self.name..": failed to find entry with key "..oldKey.." when setting quantity to "..tostring(quantity))
         return
     end
     
@@ -45,8 +49,18 @@ function CBE_TransferQueue:SetQuantity(transferItem, quantity)
     return table.insert(self.items[newKey], table.remove(self.items[oldKey]))
 end
 
-function CBE_TransferQueue:Dequeue(bag, slotIndex, quantity)
+function class.TransferQueue:Dequeue(bag, slotIndex, quantity)
 
+    if quantity == nil then
+        if slotIndex == nil 
+           or slotIndex == cbe.constants.QUANTITY_UNSPECIFIED 
+        then
+            quantity = slotIndex
+            slotIndex = bag
+            bag = self.targetBag
+        end
+    end
+    
     local itemLink = GetItemLink(bag, slotIndex)
     local itemId
     _, _, _, itemId = ZO_LinkHandler_ParseLink( itemLink )
@@ -58,36 +72,33 @@ function CBE_TransferQueue:Dequeue(bag, slotIndex, quantity)
     
     local key = self:GetKey(itemId, quantity, bag)
     if not self.items[key] then
-        CBE:Debug(self.name..": dequeue failed for "..itemLink.." id "..tostring(itemId).." bag "..tostring(bag).." slot "..tostring(slotIndex).." qty "..tostring(quantity))
+        util.Debug(self.name..": dequeue failed for "..itemLink.." id "..tostring(itemId).." bag "..tostring(bag).." slot "..tostring(slotIndex).." qty "..tostring(quantity))
         return nil
     end
     
-    CBE:Debug(self.name..": dequeue succeeded for "..itemLink.." id "..tostring(itemId).." bag "..tostring(bag).." slot "..tostring(slotIndex).." qty "..tostring(quantity))
+    util.Debug(self.name..": dequeue succeeded for "..itemLink.." id "..tostring(itemId).." bag "..tostring(bag).." slot "..tostring(slotIndex).." qty "..tostring(quantity))
     self.itemCount = self.itemCount - 1
     return table.remove(self.items[key])
 end
 
-function CBE_TransferQueue:Enqueue(bag, slotIndex, quantity, targetBag, callback)
-    local itemLink = GetItemLink(bag, slotIndex)
+function class.TransferQueue:Enqueue(slotIndex, quantity, callback)
+    local itemLink = GetItemLink(self.sourceBag, slotIndex)
     local itemId
     _, _, _, itemId = ZO_LinkHandler_ParseLink( itemLink )
     if not quantity then
-        local stackSize, maxStackSize = GetSlotStackSize(bag, slotIndex)
+        local stackSize, maxStackSize = GetSlotStackSize(self.sourceBag, slotIndex)
         quantity = math.min(stackSize, maxStackSize)
     end
     
     local item = { 
-        bag       = bag,
+        bag       = self.sourceBag,
         slotIndex = slotIndex,
         itemId    = itemId,
         itemLink  = itemLink,
         quantity  = quantity,
-        targetBag = targetBag,
+        targetBag = self.targetBag,
         callback  = callback
     }
-    if not item.callback and bag==BAG_VIRTUAL then
-        CBE:Debug(self.name..": null callback passed to enqueue for bag "..tostring(bag).." slot "..tostring(slotIndex).." qty "..tostring(quantity))
-    end
     
     local key = self:GetKey(itemId, quantity, targetBag)
     if not self.items[key] then
@@ -97,9 +108,28 @@ function CBE_TransferQueue:Enqueue(bag, slotIndex, quantity, targetBag, callback
     table.insert(self.items[key], item)
     self.itemCount = self.itemCount + 1
     
-    CBE:Debug(self.name..": enqueue succeeded for "..itemLink.." id "..tostring(itemId).." bag "..tostring(bag).." slot "..tostring(slotIndex).." qty "..tostring(quantity))
+    util.Debug(self.name..": enqueue succeeded for "..itemLink.." id "..tostring(itemId).." bag "..tostring(self.sourceBag).." slot "..tostring(slotIndex).." qty "..tostring(quantity))
     return item
 end
-function CBE_TransferQueue:HasItems()
+
+function class.TransferQueue:HasItems()
     return self.itemCount > 0
+end
+
+--[[ Registers a new transfer item and callback for slot updates for the 
+     item originating at the given index in the source bag. ]]
+function class.TransferQueue:StartWaitingForTransfer(index, callback, quantity)
+    
+    -- Validate that there is a free slot in the backpack to receive the stack
+    if GetNumBagFreeSlots(self.targetBag) < 1 then
+        ZO_Alert(UI_ALERT_CATEGORY_ERROR, SOUNDS.NEGATIVE_CLICK, SI_INVENTORY_ERROR_INVENTORY_FULL)
+        return
+    end
+    -- Register callback information
+    if not callback then
+        util.Debug("null callback encountered for bag "..tostring(self.sourceBag).." slot "..tostring(index).." qty "..tostring(quantity))
+    end
+    local transferItem = self:Enqueue(index, quantity, callback)
+    
+    return transferItem
 end

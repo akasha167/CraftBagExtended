@@ -1,10 +1,13 @@
-CBE_TradeController = CBE_Controller:Subclass()
+local cbe   = CraftBagExtended
+local util  = cbe.utility
+local class = cbe.classes
+class.Trade = class.Controller:Subclass()
 
-local name = "CBE_TradeController"
+local name = cbe.name .. "Trade"
 local debug = false
 
-function CBE_TradeController:New(...)
-    local controller = CBE_Controller.New(self, 
+function class.Trade:New(...)
+    local controller = class.Controller.New(self, 
         name, "trade", ZO_Trade, BACKPACK_PLAYER_TRADE_LAYOUT_FRAGMENT)
     controller.menu:SetAnchor(BOTTOMRIGHT, ZO_TradeMyControls, TOPRIGHT, 0, -12)
     return controller
@@ -33,7 +36,7 @@ local function OnBackpackTransferComplete(transferItem)
     if not TRADE_WINDOW:IsTrading() then return end
     
     if not transferItem then
-        CBE:Debug(name..":OnBackpackTransferComplete did not receive its transferItem parameter", debug)
+        util.Debug(name..":OnBackpackTransferComplete did not receive its transferItem parameter", debug)
     end
     
     -- Add the stack to my trade items list
@@ -41,7 +44,7 @@ local function OnBackpackTransferComplete(transferItem)
 end
 
 --[[ Adds mail-specific inventory slot crafting bag actions ]]
-function CBE_TradeController:AddSlotActions(slotInfo)
+function class.Trade:AddSlotActions(slotInfo)
     
     if not TRADE_WINDOW:IsTrading() then return end
     
@@ -68,7 +71,7 @@ function CBE_TradeController:AddSlotActions(slotInfo)
                     -- Update the keybind strip command
                     ZO_InventorySlot_OnMouseEnter(slotInfo.inventorySlot)
                     -- Transfer mats back to craft bag
-                    CBE.Inventory:TransferToCraftBag(bagId, slotId)
+                    cbe:TransferToCraftBag(bagId, slotId)
                 end, 
                 "primary")
         end
@@ -79,11 +82,22 @@ function CBE_TradeController:AddSlotActions(slotInfo)
         slotInfo.slotActions:AddSlotAction(
             actionName, 
             function() 
-                CBE.Inventory:StartTransfer(
-                    slotInfo.inventorySlot, 
+                cbe:RetrieveDialog(
+					slotInfo.slotIndex,
                     actionName, SI_ITEM_ACTION_TRADE_ADD, 
                     OnBackpackTransferComplete) 
             end, 
             "primary")
+    end
+end
+
+function class.Trade:FilterSlot(inventoryManager, inventory, slot)
+    if not TRADE_WINDOW:IsTrading() then 
+        return 
+    end
+    
+    -- Exclude untradable slots
+    if not TRADE_WINDOW:CanTradeItem(slot) then
+        return true
     end
 end

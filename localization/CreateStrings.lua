@@ -1,4 +1,4 @@
-for stringId, value in pairs(CBE_STRINGS) do
+for stringId, value in pairs(CRAFTBAGEXTENDED_STRINGS) do
     local stringValue
     if type(value) == "table" then
         for i=2,#value do
@@ -11,9 +11,9 @@ for stringId, value in pairs(CBE_STRINGS) do
     else
         stringValue = value
     end
-	ZO_CreateStringId(stringId, stringValue)
+    ZO_CreateStringId(stringId, stringValue)
 end
-CBE_STRINGS = nil
+CRAFTBAGEXTENDED_STRINGS = nil
 
 -- Addon title
 ZO_CreateStringId("SI_CBE", "|c99CCEFCraft Bag Extended|r")

@@ -1,66 +1,103 @@
-CBE = {
-    name = "CraftBagExtended",
-    title = GetString(SI_CBE),
-    author = "|c99CCEFsilvereyes|r",
-    version = "1.5.3",
-    debug = false,
+CraftBagExtended = {
+    name      = "CraftBagExtended",
+    title     = GetString(SI_CBE),
+    author    = "|c99CCEFsilvereyes|r",
+    version   = "2.0.0 (alpha)",
+    debug     = false,
+    constants = {
+        QUANTITY_UNSPECIFIED = -1,
+    },
+    classes = {}
 }
 
-local function CreateButtonData(menuBar, descriptor, tabIconCategory, callback)
-    local iconTemplate = "EsoUI/Art/Inventory/inventory_tabIcon_<<1>>_<<2>>.dds"
-    return {
-        normal = zo_strformat(iconTemplate, tabIconCategory, "up"),
-        pressed = zo_strformat(iconTemplate, tabIconCategory, "down"),
-        highlight = zo_strformat(iconTemplate, tabIconCategory, "over"),
-        descriptor = descriptor,
-        categoryName = descriptor,
-        callback = callback,
-        menu = menuBar
-    }
-end
-
-local function GetCraftBagStatusIcon()
-    if SHARED_INVENTORY and SHARED_INVENTORY:AreAnyItemsNew(nil, nil, BAG_VIRTUAL) then
-        return ZO_KEYBOARD_NEW_ICON
-    end
-    return nil
-end
-
-local function GetCraftBagTooltip(...)
-    return ZO_InventoryMenuBar:LayoutCraftBagTooltip(...)
-end
-
 local function OnAddonLoaded(event, name)
-    if name ~= CBE.name then return end
-    EVENT_MANAGER:UnregisterForEvent(CBE.name, EVENT_ADD_ON_LOADED)
+    local self = CraftBagExtended
+    if name ~= self.name then return end
+    EVENT_MANAGER:UnregisterForEvent(self.name, EVENT_ADD_ON_LOADED)
     
-    CBE.Settings  = CBE_SettingsController:New()
-    CBE.GuildBank = CBE_GuildBankController:New()
-    CBE.Mail      = CBE_MailController:New()
-    CBE.Trade     = CBE_TradeController:New()
-    CBE.Inventory = CBE_InventoryController:New()
+    local class = self.classes
+    
+    self.backpackTransferQueue = 
+        class.TransferQueue:New(
+            self.name .. "BackpackQueue", 
+            BAG_VIRTUAL, 
+            BAG_BACKPACK
+        )
+    
+    self.settings  = class.Settings:New()
+    
+    self.modules = {
+        guildBank = class.GuildBank:New(),
+        mail      = class.Mail:New(),
+        trade     = class.Trade:New(),
+    }
+    
+    self:InitializeHooks()
     
 end
+EVENT_MANAGER:RegisterForEvent(CraftBagExtended.name, EVENT_ADD_ON_LOADED, OnAddonLoaded)
 
-function CBE:AddCraftBagButton(menuBar, callback)
-    local buttonData = CreateButtonData(menuBar, SI_INVENTORY_MODE_CRAFT_BAG, "Craftbag", callback)
-    buttonData.CustomTooltipFunction = GetCraftBagTooltip
-    buttonData.statusIcon = GetCraftBagStatusIcon
-    local button = ZO_MenuBar_AddButton(menuBar, buttonData)
-    return button
+
+--[[ Opens the "Retrieve" from craft bag dialog with a custom action name for
+     the transfer button.  Automatically runs a given callback once the transfer
+     is complete. ]]
+function CraftBagExtended:RetrieveDialog(craftBagIndex, dialogTitle, buttonText, callback)
+    
+    -- Start listening for backpack slot update events
+    local transferItem = 
+        self.backpackTransferQueue:StartWaitingForTransfer(
+            craftBagIndex, 
+            callback, 
+            self.constants.QUANTITY_UNSPECIFIED
+        )
+    if not transferItem then return end
+    
+    -- Override the text of the transfer dialog's title and/or button
+    local transferDialogInfo = self.utility.GetRetrieveDialogInfo()
+    
+    self.transferDialogItem = transferItem
+    
+    if dialogTitle then
+        transferDialogInfo.title.text = dialogTitle
+    end
+    if buttonText then
+        transferDialogInfo.buttons[1].text = buttonText
+    end
+    
+    -- Open the transfer dialog
+    local transferDialog = SYSTEMS:GetObject("ItemTransferDialog")
+    transferDialog:StartTransfer(BAG_VIRTUAL, craftBagIndex, BAG_BACKPACK)
 end
 
-function CBE:AddItemsButton(menuBar, callback)
-    local buttonData = CreateButtonData(menuBar, SI_INVENTORY_MODE_ITEMS, "items", callback)
-    local button = ZO_MenuBar_AddButton(menuBar, buttonData)
-    return button
+--[[ Moves an item at the given bag and slot index into the craft bag. ]]
+function CraftBagExtended:TransferToCraftBag(bag, slotIndex)
+    
+    local inventoryLink = GetItemLink(bag, slotIndex)
+    
+    -- Find any existing slots in the craft bag that have the given item already
+    local targetSlotIndex = nil
+    for currentSlotIndex,slotData in ipairs(PLAYER_INVENTORY.inventories[INVENTORY_CRAFT_BAG].slots) do
+        local craftBagLink = GetItemLink(BAG_VIRTUAL, currentSlotIndex)
+        if craftBagLink == inventoryLink then
+            targetSlotIndex = currentSlotIndex
+            break
+        end
+    end
+    
+    -- The craft bag didn't have the item yet, so get a new empty slot
+    if not targetSlotIndex then
+        targetSlotIndex = FindFirstEmptySlotInBag(BAG_VIRTUAL)
+    end
+    
+    -- Move the item into the identified craft bag slot
+    local quantity = GetSlotStackSize(bag, slotIndex)
+    
+    self.utility.Debug("Transferring "..tostring(quantity).." "..inventoryLink.." to craft bag slot "..tostring(targetSlotIndex))
+    
+    if IsProtectedFunction("RequestMoveItem") then
+        CallSecureProtected("RequestMoveItem", bag, slotIndex, BAG_VIRTUAL, targetSlotIndex, quantity)
+    else
+        RequestMoveItem(bag, slotIndex, BAG_VIRTUAL, targetSlotIndex, quantity)
+    end
 end
 
---[[ Outputs formatted message to chat window if debugging is turned on ]]
-function CBE:Debug(input, scopeDebug)
-    if not CBE.debug and not scopeDebug then return end
-    local output = zo_strformat("<<1>>|cFFFFFF: <<2>>|r", CBE.title, input)
-    d(output)
-end
-
-EVENT_MANAGER:RegisterForEvent(CBE.name, EVENT_ADD_ON_LOADED, OnAddonLoaded)

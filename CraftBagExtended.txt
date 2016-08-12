@@ -1,7 +1,7 @@
 ## Title: Craft Bag Extended
 ## Author: |c99CCEFsilvereyes|r
 ## Description: Adds ESO+ craft bag to guild bank, mail and trade; allows disabling auto-stash for guild bank withdrawals.
-## Version: 1.5.3
+## Version: 2.0.0 (alpha)
 ## APIVersion: 100016
 ## OptionalDependsOn: LibStub LibAddonMenu-2.0 TweakIt
 ## SavedVariables: CraftBagExtended_Data
@@ -19,10 +19,11 @@ localization\CreateStrings.lua
 
 CraftBagExtended.lua
 
+classes\Utility.lua
 classes\Controller.lua
-classes\GuildBankController.lua
-classes\InventoryController.lua
-classes\MailController.lua
-classes\SettingsController.lua
-classes\TradeController.lua
+classes\GuildBank.lua
+classes\Hooks.lua
+classes\Mail.lua
+classes\Settings.lua
+classes\Trade.lua
 classes\TransferQueue.lua

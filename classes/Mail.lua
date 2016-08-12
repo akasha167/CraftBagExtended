@@ -1,13 +1,16 @@
-CBE_MailController = CBE_Controller:Subclass()
+local cbe   = CraftBagExtended
+local util  = cbe.utility
+local class = cbe.classes
+class.Mail  = class.Controller:Subclass()
 
-local name = "CBE_MailController"
+local name = cbe.name .. "Mail"
 local debug = false
 
-function CBE_MailController:New(...)
-    local controller = CBE_Controller.New(self, 
+function class.Mail:New(...)
+    local instance = class.Controller.New(self, 
         name, "mailSend", ZO_MailSend, BACKPACK_MAIL_LAYOUT_FRAGMENT)
-    controller.menu:SetAnchor(TOPRIGHT, ZO_MailSend, TOPLEFT, ZO_MailSendTo:GetWidth(), 22)
-    return controller
+    instance.menu:SetAnchor(TOPRIGHT, ZO_MailSend, TOPLEFT, ZO_MailSendTo:GetWidth(), 22)
+    return instance
 end
 
 --[[ Returns true if the mail send interface is currently open. Otherwise returns false. ]]
@@ -49,7 +52,7 @@ local function OnBackpackTransferComplete(transferItem)
     if not IsSendingMail() then return end
     
     if not transferItem then
-        CBE:Debug(name..":OnBackpackTransferComplete did not receive its transferItem parameter", debug)
+        util.Debug(name..":OnBackpackTransferComplete did not receive its transferItem parameter", debug)
     end
     
     local errorStringId = nil
@@ -91,12 +94,12 @@ local function OnBackpackTransferComplete(transferItem)
     -- back to the craft bag.
     if errorStringId then
         ZO_Alert(UI_ALERT_CATEGORY_ERROR, SOUNDS.NEGATIVE_CLICK, GetString(errorStringId))
-        CBE.Inventory:TransferToCraftBag(transferItem.targetBag, transferItem.targetSlotIndex)
+        cbe:TransferToCraftBag(transferItem.targetBag, transferItem.targetSlotIndex)
     end
 end
 
 --[[ Adds mail-specific inventory slot crafting bag actions ]]
-function CBE_MailController:AddSlotActions(slotInfo)
+function class.Mail:AddSlotActions(slotInfo)
     
     if not IsSendingMail() then return end
     
@@ -119,7 +122,7 @@ function CBE_MailController:AddSlotActions(slotInfo)
                     -- Update the keybind strip command
                     ZO_InventorySlot_OnMouseEnter(slotInfo.inventorySlot)
                     -- Transfer mats back to craft bag
-                    CBE.Inventory:TransferToCraftBag(slotInfo.bag, slotInfo.slotIndex)
+                    cbe:TransferToCraftBag(slotInfo.bag, slotInfo.slotIndex)
                 end, 
                 "primary")
         end
@@ -130,11 +133,22 @@ function CBE_MailController:AddSlotActions(slotInfo)
         slotInfo.slotActions:AddSlotAction(
             actionName, 
             function() 
-                CBE.Inventory:StartTransfer(
-                    slotInfo.inventorySlot, 
+                cbe:RetrieveDialog(
+					slotInfo.slotIndex, 
                     actionName, SI_ITEM_ACTION_MAIL_ATTACH, 
                     OnBackpackTransferComplete) 
             end, 
             "primary")
+    end
+end
+
+function class.Mail:FilterSlot(inventoryManager, inventory, slot)
+    if not IsSendingMail() then 
+        return 
+    end
+    
+    -- Exclude protected slots
+    if util.IsSlotProtected(slot) then 
+        return true 
     end
 end
