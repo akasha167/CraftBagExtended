@@ -100,7 +100,7 @@ function class.TransferQueue:Enqueue(slotIndex, quantity, callback)
         callback  = callback
     }
     
-    local key = self:GetKey(itemId, quantity, targetBag)
+    local key = self:GetKey(itemId, quantity, self.targetBag)
     if not self.items[key] then
         self.items[key] = {}
     end

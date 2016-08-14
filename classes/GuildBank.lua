@@ -28,7 +28,7 @@ function class.GuildBank:Setup()
         class.TransferQueue:New(
             self.name .. "WithdrawalQueue",
             BAG_GUILDBANK, 
-            BAG_BACKPACK
+            BAG_VIRTUAL
         )
     self.menu:SetAnchor(TOPLEFT, ZO_SharedRightPanelBackground, TOPLEFT, 55, 0)
     
@@ -62,6 +62,7 @@ function class.GuildBank:Setup()
         -- When auto-stash is off, watch for craft item withdrawals from the guild bank
         if cbe.settings.db.guildBankAutoStashOff 
            and isVirtual and not (Roomba and Roomba.WorkInProgress()) 
+           and HasCraftBagAccess()
         then 
             self.withdrawalQueue:Enqueue(slotId)
         end
