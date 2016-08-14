@@ -1,19 +1,23 @@
 local cbe       = CraftBagExtended
 local util      = cbe.utility
 local class     = cbe.classes
-class.GuildBank = ZO_Object:Subclass()
+local name      = cbe.name .. "GuildBank"
+class.GuildBank = class.Controller:Subclass()
 
-function class.GuildBank:New(...)
-    local instance = ZO_Object.New(self)
-    instance:Initialize(...)
+function class.GuildBank:New(...)        
+    local instance = class.Controller.New(self, 
+        name, "guildBank", 
+        ZO_SharedRightPanelBackground, BACKPACK_GUILD_BANK_LAYOUT_FRAGMENT,
+        ZO_GuildBankMenuBar, SI_BANK_DEPOSIT,
+        PLAYER_INVENTORY.guildBankDepositTabKeybindButtonGroup,
+        "UI_SHORTCUT_SECONDARY")
+    instance:Setup()
     return instance
 end
 
-function class.GuildBank:Initialize()
-    self.name = cbe.name .. "GuildBank"
+function class.GuildBank:Setup()
+
     self.debug = false
-    self.sceneName = "guildBank"
-    
     self.depositQueue = 
         class.TransferQueue:New(
             self.name .. "DepositQueue", 
@@ -26,89 +30,7 @@ function class.GuildBank:Initialize()
             BAG_GUILDBANK, 
             BAG_BACKPACK
         )
-    
-    -- used by SwitchScene() below
-    local guildBankFragments = {
-        [SI_BANK_WITHDRAW] = { GUILD_BANK_FRAGMENT },
-        [SI_BANK_DEPOSIT]  = { INVENTORY_FRAGMENT, BACKPACK_GUILD_BANK_LAYOUT_FRAGMENT },
-        [SI_INVENTORY_MODE_CRAFT_BAG] = { CRAFT_BAG_FRAGMENT, BACKPACK_GUILD_BANK_LAYOUT_FRAGMENT },
-    }
-    
-    --[[ Removes and adds the appropriate window fragments to display the given tabs. ]]
-    local function SwitchScene(oldScene, newScene) 
-    
-        -- Remove the old tab's fragments in reverse order
-        local removeFragments = guildBankFragments[oldScene]
-        for i=#removeFragments,1,-1 do
-            local removeFragment = removeFragments[i]
-            SCENE_MANAGER:RemoveFragment(removeFragment)
-        end
-        
-        -- Add the new tab's fragments
-        local addFragments = guildBankFragments[newScene]
-        for i,addFragment in pairs(addFragments) do
-            SCENE_MANAGER:AddFragment(addFragment)
-        end
-    end
-
-    --[[ Handle button clicks for deposit, withdraw, and craft bag buttons. ]]
-    local function OnGuildBankTabChanged(buttonData, playerDriven)
-
-        -- If the scene is in the process of showing still, no switch is needed
-        local guildBankSceneState = SCENE_MANAGER.scenes["guildBank"].state
-        if guildBankSceneState == SCENE_SHOWING then 
-            -- Remember the previous tab so we know which scene to hide when changing
-            self.lastButtonDescriptor = buttonData.descriptor
-            return 
-        end
-        
-        -- Show or hide the craft bag window
-        if buttonData.descriptor == SI_INVENTORY_MODE_CRAFT_BAG or self.lastButtonDescriptor == SI_INVENTORY_MODE_CRAFT_BAG then
-            SwitchScene(self.lastButtonDescriptor, buttonData.descriptor)
-        end
-        
-        -- Remember the previous tab so we know which scene to hide when changing
-        self.lastButtonDescriptor = buttonData.descriptor
-    end
-
-    --[[ Handle guild bank screen open/close events ]]
-    local function OnGuildBankSceneStateChange(oldState, newState)
-        -- On exit, stop any outstanding transfers
-        -- anchors.
-        if(newState == SCENE_HIDDEN) then
-            cbe.backpackTransferQueue:Clear()
-            self.depositQueue:Clear()
-        end
-    end
-    SCENE_MANAGER.scenes["guildBank"]:RegisterCallback("StateChange",  OnGuildBankSceneStateChange)
-    
-    --[[ Wire up original guild bank buttons for tab changed event. ]]
-    local buttons = ZO_GuildBankMenuBar.m_object.m_buttons
-    for i, button in ipairs(buttons) do
-        local buttonData = button[1].m_object.m_buttonData
-        local callback = buttonData.callback
-        buttonData.callback = function(...)
-            OnGuildBankTabChanged(...)
-            callback(...)
-        end
-    end
-    
-    --[[ Create craft bag button. ]]
-    util.AddCraftBagButton(ZO_GuildBankMenuBar, 
-        function (buttonData, playerDriven)
-        
-            -- Update the menu label to say "Craft Items"
-            ZO_GuildBankMenuBarLabel:SetText(GetString(SI_INVENTORY_MODE_CRAFT_BAG))
-            
-            -- Tab changed callback
-            OnGuildBankTabChanged(buttonData, playerDriven)
-            
-            -- Remove Deposit/withdraw keybind button when on craft bag tab
-            local secondaryKeybindDescriptor = 
-                KEYBIND_STRIP.keybinds["UI_SHORTCUT_SECONDARY"].keybindButtonDescriptor
-            KEYBIND_STRIP:RemoveKeybindButton(secondaryKeybindDescriptor)
-        end)
-    
+    self.menu:SetAnchor(TOPLEFT, ZO_SharedRightPanelBackground, TOPLEFT, 55, 0)
     
     --[[ When listening for a guild bank slot updated, handle any guild bank 
          transfer errors that get raised by stopping the transfer. ]]
