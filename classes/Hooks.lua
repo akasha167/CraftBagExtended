@@ -1,43 +1,6 @@
 local cbe  = CraftBagExtended
 local util = cbe.utility
 
---[[ Handles backpack item slot update events thrown from a "Retrieve" 
-     from craft bag dialog. ]]
-local function OnBackpackSlotUpdated(eventCode, bagId, slotId, isNewItem, itemSoundCategory, updateReason)
-
-    if bagId ~= BAG_BACKPACK then return end
-    
-    if not cbe.backpackTransferQueue:HasItems() then 
-        util.Debug("Not waiting for any backpack transfers reason "..tostring(itemSoundCategory))
-        return 
-    end
-    
-    local transferredItem = cbe.backpackTransferQueue:Dequeue(slotId)
-    
-    -- Don't handle any update events in the craft bag. We want the backpack events.
-    if not transferredItem then 
-        util.Debug("No outstanding transfers found for backpack slot id "..tostring(slotId).." reason "..tostring(itemSoundCategory))
-        return 
-    end
-    
-    -- This flag marks backpack slots for return/stow actions
-    SHARED_INVENTORY:GenerateSingleSlotData(bagId, slotId).fromCraftBag = true
-    
-    -- Raise the callback.  It should never be nil or a nonfunction, 
-    -- but check just in case
-    if type(transferredItem.callback) == "function" then
-        util.Debug("calling callback on backpack slot "..tostring(slotId).." reason "..tostring(itemSoundCategory))
-        transferredItem.targetSlotIndex = slotId
-        transferredItem.callback(transferredItem)
-    else
-        util.Debug("callback on backpack slot "..tostring(slotId).." was not a function. it was a "..callbackType.." reason "..tostring(itemSoundCategory))
-    end
-    
-    -- Refresh the backpack slot list
-    local inventoryType = PLAYER_INVENTORY.bagToInventoryType[bagId]
-    PLAYER_INVENTORY:UpdateList(inventoryType, true)
-end
-
  --[[ Handle craft bag open/close events ]]
 local function OnCraftBagFragmentStateChange(oldState, newState)
     -- On craft bag exit, stop listening for any transfers
@@ -62,6 +25,30 @@ local function OnInventoryFragmentStateChange(oldState, newState)
             ExtendedInfoBar:SetParent(ZO_PlayerInventory)
         end
     end
+end
+
+--[[ Handles inventory item slot update events and raise any callbacks queued up. ]]
+local function OnInventorySingleSlotUpdate(eventCode, bagId, slotId, isNewItem, itemSoundCategory, updateReason)
+
+    local transferredItem, sourceBagId = util.GetTransferItem(bagId, slotId)
+    
+    -- Don't handle any update events in the craft bag. We want the backpack events.
+    if not transferredItem then 
+        util.Debug("No outstanding transfers found for bag "..tostring(bagId).." slot id "..tostring(slotId).." reason "..tostring(itemSoundCategory))
+        return 
+    end
+    
+    -- This flag marks backpack slots for return/stow actions
+    if sourceBagId == BAG_VIRTUAL then
+        SHARED_INVENTORY:GenerateSingleSlotData(bagId, slotId).fromCraftBag = true
+    end
+    
+    -- Perform any configured callbacks
+    transferredItem:ExecuteCallback(slotId)
+    
+    -- Refresh the appropriate bag slot list
+    local inventoryType = PLAYER_INVENTORY.bagToInventoryType[bagId]
+    PLAYER_INVENTORY:UpdateList(inventoryType, true)
 end
 
 --[[ Handle scene changes involving a craft bag. ]]
@@ -175,7 +162,7 @@ local function PreTransferDialogCanceled(dialog)
     -- If canceled, remove the transfer item from the queue
     local transferItem = cbe.transferDialogItem
     if not transferItem then return end
-    cbe.backpackTransferQueue:Dequeue(transferItem.slotIndex, cbe.constants.QUANTITY_UNSPECIFIED)
+    transferItem.queue:Dequeue(transferItem.slotIndex, cbe.constants.QUANTITY_UNSPECIFIED)
     cbe.transferDialogItem = nil
 end
 
@@ -191,10 +178,10 @@ local function PreTransferDialogFinished(dialog)
         else
             quantity = tonumber(ZO_ItemTransferDialogSpinnerDisplay:GetText())
         end
-        cbe.backpackTransferQueue:SetQuantity(transferItem, quantity)
+        transferItem.queue:SetQuantity(transferItem, quantity)
     end
 
-    -- Change the transfer dialog's title and button text back to the defaults
+    --[[ Change the transfer dialog's title and button text back to the defaults
     transferDialogInfo.title.text = SI_PROMPT_TITLE_REMOVE_ITEMS_FROM_CRAFT_BAG
     transferDialogInfo.buttons[1].text = SI_ITEM_ACTION_REMOVE_ITEMS_FROM_CRAFT_BAG
     
@@ -202,7 +189,7 @@ local function PreTransferDialogFinished(dialog)
     if type(transferDialogInfo.originalTransferCallback) == "function" then
         transferDialogInfo.buttons[1].callback = transferDialogInfo.originalTransferCallback
         transferDialogInfo.originalTransferCallback = nil
-    end
+    end]]
 end
 
 function CraftBagExtended:InitializeHooks()
@@ -218,22 +205,21 @@ function CraftBagExtended:InitializeHooks()
     
     ZO_PreHook(PLAYER_INVENTORY, "ShouldAddSlotToList", PreInventoryShouldAddSlotToList)
     
-    -- Listen for backpack slot update events so that we can process the callback
-    EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_INVENTORY_SINGLE_SLOT_UPDATE, OnBackpackSlotUpdated)
+    -- Listen for bag slot update events so that we can process the callback
+    EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_INVENTORY_SINGLE_SLOT_UPDATE, OnInventorySingleSlotUpdate)
     
     -- Get transfer dialog configuration object
     local transferDialogInfo = util.GetRetrieveDialogInfo()
     
-    --[[ Stop listening for backpack slot updates if the transfer dialog is 
-         canceled via button click. ]]
+    --[[ Dequeue the transfer if the transfer dialog is canceled via button click. ]]
     local transferCancelButton = transferDialogInfo.buttons[2]
     util.PreHookCallback(transferCancelButton, "callback", PreTransferDialogCanceled)
     
-    --[[ Stop listening for backpack slot updates if the transfer dialog is 
-         canceled with no selection (i.e. ESC keypress) ]]
+    --[[ Dequeue the transfer if the transfer dialog is canceled with no 
+         selection (i.e. ESC keypress) ]]
     util.PreHookCallback(transferDialogInfo, "noChoiceCallback", PreTransferDialogCanceled)
     
-    --[[ Whenever the "Retrieve" from craftbag dialog is closed, restore default settings ]]
+    --[[ Whenever the transfer dialog is finished, set the quantity in the queue ]]
     util.PreHookCallback(transferDialogInfo, "finishedCallback", PreTransferDialogFinished)
     
     --[[ Handle craft bag open/close events ]]

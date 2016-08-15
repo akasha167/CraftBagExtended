@@ -4,6 +4,7 @@ class.Utility = ZO_Object:Subclass()
 local util    = class.Utility
 function util:New(...)
     self.name = cbe.name .. "Utility"
+    self.transferQueueCache = {}
     return ZO_Object.New(self)
 end
 cbe.utility = util:New()
@@ -55,6 +56,32 @@ function util.Debug(input, scopeDebug)
     d(output)
 end
 
+--[[ Outputs a string without spaces describing the given inventory bag.  
+     Used for naming instances related to certain bags. ]]
+function util.GetBagName(bag)
+    if bag == BAG_WORN then
+        return GetString(SI_CHARACTER_EQUIP_TITLE)
+    elseif bag == BAG_BACKPACK then
+        return GetString(SI_GAMEPAD_INVENTORY_CATEGORY_HEADER)
+    elseif bag == BAG_BANK then 
+        return GetString(SI_GAMEPAD_BANK_CATEGORY_HEADER)
+    elseif bag == BAG_GUILDBANK then 
+        return string.gsub(GetString(SI_GAMEPAD_GUILD_BANK_CATEGORY_HEADER), " ", "")
+    elseif bag == BAG_BUYBACK then 
+        return string.gsub(GetString(SI_STORE_MODE_BUY_BACK), " ", "")
+    elseif bag == BAG_VIRTUAL then
+        return string.gsub(GetString(SI_GAMEPAD_INVENTORY_CRAFT_BAG_HEADER), " ", "")
+    end
+end
+
+--[[ Gets the "inventory slot", which is to say the button control for a slot ]]
+function util.GetInventorySlot(bag, slotIndex)
+    local slot = SHARED_INVENTORY:GenerateSingleSlotData(bag, slotIndex)
+    if slot and slot.slotControl then
+        return slot.slotControl:GetNamedChild("Button")
+    end
+end
+
 --[[ Gets the config table for the "Retrieve" from craft bag dialog. ]]
 function util.GetRetrieveDialogInfo()
     local transferDialogInfoIndex
@@ -64,6 +91,36 @@ function util.GetRetrieveDialogInfo()
         transferDialogInfoIndex = "ITEM_TRANSFER_REMOVE_FROM_CRAFT_BAG_KEYBOARD"
     end
     return ESO_Dialogs[transferDialogInfoIndex]
+end
+
+--[[ Searches all available cached transfer queues for an item that is queued
+     up for transfer to the given bag. If found, dequeues the transfer item and 
+     returns it and the source bag it was transferred from. ]]
+function util.GetTransferItem(bag, slotIndex, quantity)
+    local self = cbe.utility
+    if not self.transferQueueCache[bag] then return end
+    for sourceBag, queue in pairs(self.transferQueueCache[bag]) do
+        local transferItem = queue:Dequeue(bag, slotIndex, quantity)
+        if transferItem then
+            return transferItem, sourceBag
+        end
+    end
+end
+
+--[[ Returns a lazy-loaded, cached transfer queue given a source 
+     and a destination bag id. ]]
+function util.GetTransferQueue(sourceBag, destinationBag)
+    local self = cbe.utility
+    if not self.transferQueueCache[destinationBag] then
+        self.transferQueueCache[destinationBag] = {}
+    end
+    if not self.transferQueueCache[destinationBag][sourceBag] then
+        local queueName = cbe.name .. self.GetBagName(sourceBag) 
+                          .. self.GetBagName(destinationBag) .. "Queue"
+        self.transferQueueCache[destinationBag][sourceBag] = 
+            class.TransferQueue:New(queueName, sourceBag, destinationBag)
+    end
+    return self.transferQueueCache[destinationBag][sourceBag]
 end
 
 --[[ Determines if an inventory slot should be protected against storing in the
@@ -125,5 +182,31 @@ function util.RefreshActiveTooltip()
     if inventorySlot then
         util.Debug("Active tooltip refreshed")
         ZO_InventorySlot_OnMouseEnter(inventorySlot)
+    end
+end
+
+--[[ Changes the keybind mapped to a particular descriptor, identified by its
+     old keybind. ]]
+function util.RemapKeybind(descriptors, oldKeybind, newKeybind)
+    for _,descriptor in ipairs(descriptors) do
+        if descriptor.keybind == oldKeybind then
+            descriptor.keybind = newKeybind
+        end
+    end
+end
+
+--[[ Combines two functions into a single function, with type checking. ]]
+function util.WrapFunctions(function1, function2)
+    if type(function1) == "function" then
+        if type(function2) == "function" then
+            return function(...)
+                       function1(...)
+                       function2(...)
+                   end
+        else
+            return function1
+        end
+    else
+        return function2
     end
 end

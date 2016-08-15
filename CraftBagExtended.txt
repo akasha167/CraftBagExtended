@@ -23,7 +23,9 @@ classes\Utility.lua
 classes\Controller.lua
 classes\GuildBank.lua
 classes\Hooks.lua
+classes\Inventory.lua
 classes\Mail.lua
 classes\Settings.lua
 classes\Trade.lua
+classes\TransferItem.lua
 classes\TransferQueue.lua
