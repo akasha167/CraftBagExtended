@@ -30,6 +30,10 @@ function class.TransferItem:Initialize(queue, slotIndex, quantity, callback)
     self.quantity = quantity
     self.targetBag = queue.targetBag
     self.callback = callback
+    if cbe.noAutoReturn then
+        self.noAutoReturn = cbe.noAutoReturn
+        cbe.noAutoReturn = nil
+    end
 end
 
 --[[ Performs the next configured callback, and clears it so that it doesn't

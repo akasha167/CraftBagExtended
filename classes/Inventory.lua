@@ -2,34 +2,66 @@ local cbe       = CraftBagExtended
 local util      = cbe.utility
 local class     = cbe.classes
 local name      = cbe.name .. "Inventory"
-class.Inventory = ZO_Object:Subclass()
+class.Inventory = class.Module:Subclass()
 
 function class.Inventory:New(...)        
-    local instance = ZO_Object.New(self)
-    instance:Initialize()
+    local instance = class.Module.New(self, name, "inventory")
+    instance:Setup()
     return instance
 end
 
-function class.Inventory:Initialize()
-
-    self.name = name
+function class.Inventory:Setup()
     self.debug = false
     self.retrieveQueue = util.GetTransferQueue( BAG_VIRTUAL, BAG_BACKPACK )
     self.stowQueue = util.GetTransferQueue( BAG_BACKPACK, BAG_VIRTUAL )
 end
 
-local function ValidateSlotAvailable()
-    local backpackSlotIndex = FindFirstEmptySlotInBag(BAG_BACKPACK)
-    if backpackSlotIndex then
-        return backpackSlotIndex
-    else
-        ZO_AlertEvent(EVENT_INVENTORY_IS_FULL, 1, 0)
-    end
-end
-
 --[[ Adds normal inventory screen crafting bag slot actions ]]
 function class.Inventory:AddSlotActions(slotInfo)
-    
+    local slotIndex = slotInfo.slotIndex
+    local isShown = self:IsSceneShown()
+    if slotInfo.bag == BAG_BACKPACK and HasCraftBagAccess() 
+       and CanItemBeVirtual(slotInfo.bag, slotIndex) 
+       and not IsItemStolen(slotInfo.bag, slotIndex)
+       and not slotInfo.slotData.locked
+       and slotInfo.slotType == SLOT_TYPE_ITEM
+    then
+        
+        --[[ Stow ]]--
+        table.insert(slotInfo.slotActions, {
+            SI_ITEM_ACTION_ADD_ITEMS_TO_CRAFT_BAG,  
+            function() cbe:Stow(slotIndex) end,
+            (isShown and "primary") or "secondary"
+        })
+        --[[ Stow quantity ]]--
+        table.insert(slotInfo.slotActions, {
+            SI_CBE_CRAFTBAG_STOW_QUANTITY,  
+            function() cbe:StowDialog(slotIndex) end,
+            (isShown and "keybind1") or "secondary"
+        })
+        
+    elseif slotInfo.bag == BAG_VIRTUAL then
+        
+        --[[ Retrieve ]]--
+        table.insert(slotInfo.slotActions, {
+            SI_ITEM_ACTION_REMOVE_ITEMS_FROM_CRAFT_BAG,  
+            function()
+                cbe.noAutoReturn = true
+                cbe:Retrieve(slotIndex) 
+            end,
+            (isShown and "primary") or "secondary"
+        })
+        --[[ Retrieve quantity ]]--
+        table.insert(slotInfo.slotActions, {
+            SI_CBE_CRAFTBAG_RETRIEVE_QUANTITY,  
+            function() 
+                cbe.noAutoReturn = true
+                cbe:RetrieveDialog(slotIndex)
+            end,
+            (isShown and "keybind1") or "secondary"
+        })
+
+    end
 end
 
 --[[ Moves a given quantity from the given craft bag inventory slot index into 
@@ -37,29 +69,7 @@ end
      If quantity is nil, then the max stack is moved. If a callback function 
      is specified, it will be called when the mats arrive in the backpack. ]]
 function class.Inventory:Retrieve(slotIndex, quantity, callback)
-    
-    -- Find the first free slot in the backpack
-    local backpackSlotIndex = ValidateSlotAvailable()
-    if not backpackSlotIndex then
-        return false
-    end
-    
-    -- Queue up the transfer
-    local transferItem = self.retrieveQueue:Enqueue(slotIndex, quantity, callback)
-    if not quantity then
-        quantity = transferItem.quantity
-    end
-    
-    util.Debug("Retrieving "..tostring(quantity).." from craft bag slotId "..tostring(slotId).." back to backpack slot "..tostring(backpackSlotIndex), self.debug)
-    
-    -- Initiate the stack move to the backpack
-    if IsProtectedFunction("RequestMoveItem") then
-        CallSecureProtected("RequestMoveItem", BAG_VIRTUAL, slotIndex, BAG_BACKPACK, backpackSlotIndex, quantity)
-    else
-        RequestMoveItem(BAG_VIRTUAL, slotIndex, BAG_BACKPACK, backpackSlotIndex, quantity)
-    end
-    
-    return true
+    return util.TransferItemToBag(BAG_VIRTUAL, slotIndex, BAG_BACKPACK, quantity, callback)
 end
 
 --[[ Moves a given quantity from the given backpack inventory slot index into 
@@ -102,57 +112,6 @@ function class.Inventory:Stow(slotIndex, quantity, callback)
     else
         RequestMoveItem(BAG_BACKPACK, slotIndex, BAG_VIRTUAL, targetSlotIndex, quantity)
     end
-    
-    return true
-end
-
---[[ Opens the "Retrieve" or "Stow" transfer dialog with a custom action name for
-     the transfer button.  Automatically runs a given callback once the transfer
-     is complete, if specified. ]]
-function class.Inventory:TransferDialog(bag, slotIndex, targetBag, dialogTitle, buttonText, callback)
-    
-    -- Validate that the transfer is legit
-    if targetBag == BAG_BACKPACK then
-        if not ValidateSlotAvailable() then
-            return false
-        end
-    elseif bag == BAG_BACKPACK and targetBag == BAG_VIRTUAL then
-        if not CanItemBeVirtual(BAG_BACKPACK, slotIndex) then
-            return false
-        end
-    else
-        return false
-    end
-    
-    -- Override the text of the transfer dialog's title and/or button
-    local transferDialogInfo = util.GetRetrieveDialogInfo()
-    
-    -- Wire up callback
-    if type(callback) == "function" or type(callback) == "table" then
-        local transferQueue = util.GetTransferQueue( bag, targetBag )
-        local transferItem = 
-            transferQueue:StartWaitingForTransfer(
-                slotIndex, 
-                callback, 
-                cbe.constants.QUANTITY_UNSPECIFIED
-            )
-        if not transferItem then return end
-        
-        -- Do not remove. Used by the dialog finished hooks to properly set the
-        -- stack quantity.
-        cbe.transferDialogItem = transferItem
-    end
-    
-    if dialogTitle then
-        transferDialogInfo.title.text = dialogTitle
-    end
-    if buttonText then
-        transferDialogInfo.buttons[1].text = buttonText
-    end
-    
-    -- Open the transfer dialog
-    local transferDialog = SYSTEMS:GetObject("ItemTransferDialog")
-    transferDialog:StartTransfer(bag, slotIndex, targetBag)
     
     return true
 end

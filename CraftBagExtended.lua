@@ -1,3 +1,7 @@
+local function Set (list)
+    local set = {} for _, l in ipairs(list) do set[l] = true end return set
+end
+
 CraftBagExtended = {
     name       = "CraftBagExtended",
     title      = GetString(SI_CBE),
@@ -8,6 +12,18 @@ CraftBagExtended = {
     classes    = {},
     constants  = {
         QUANTITY_UNSPECIFIED = -1,
+        BAG_TYPES = Set {
+            BAG_BACKPACK,
+            BAG_BANK,
+            BAG_GUILDBANK,
+            BAG_VIRTUAL,
+        },
+        SLOT_TYPES = Set { 
+            SLOT_TYPE_CRAFT_BAG_ITEM,
+            SLOT_TYPE_ITEM,
+            SLOT_TYPE_MAIL_QUEUED_ATTACHMENT,
+            SLOT_TYPE_MY_TRADE,
+        }
     },
 }
 
@@ -17,7 +33,30 @@ CraftBagExtended = {
      The following methods and signatures should be considered safe to use in
      your code without fear of breaking signature changes.
   ]]
-  
+
+--[[ Opens the "Retrieve" from craft bag dialog for depositing to the player 
+     bank.  Automatically runs a given callback once the deposit is complete, 
+     if specified. ]]
+function CraftBagExtended:BankDeposit(slotIndex, quantity, callback)
+    return self.modules.bank:Deposit(slotIndex, quantity, callback)
+end
+
+--[[ Opens the "Retrieve" from craft bag dialog for depositing to the player 
+     bank.  Automatically runs a given callback once the deposit is complete, 
+     if specified. ]]
+function CraftBagExtended:BankDepositDialog(slotIndex, callback)
+    return self.modules.bank:DepositDialog(slotIndex, callback)
+end
+
+--[[ Withdraws a given stack of mats from the player bank
+     and then automatically stows them in the craft bag.
+     If the backpack doesn't have at least one slot available, 
+     an alert is raised and no mats are transferred.
+     An optional callback can be raised both when the mats arrive in the backpack
+     and/or when they arrive in the craft bag. ]]
+function CraftBagExtended:BankWithdraw(slotIndex, backpackCallback, craftbagCallback)
+    return self.modules.bank:Withdraw(slotIndex, backpackCallback, craftbagCallback)
+end
 
 --[[ Retrieves a given quantity of mats from a given craft bag slot index, 
      and then automatically deposits them in the currently-selected guild bank.
@@ -80,10 +119,12 @@ end
 --[[ Opens the "Retrieve" from craft bag dialog with a custom action name for
      the transfer button.  Automatically runs a given callback once the transfer
      is complete, if specified. ]]
-function CraftBagExtended:RetrieveDialog(craftBagSlotIndex, dialogTitle, buttonText, callback)
-    return self.modules.inventory:TransferDialog( 
-        BAG_VIRTUAL, craftBagSlotIndex, BAG_BACKPACK, 
-        dialogTitle, buttonText, callback )
+function CraftBagExtended:RetrieveDialog(slotIndex, dialogTitle, buttonText, callback)
+    return self.utility.TransferDialog( 
+        BAG_VIRTUAL, slotIndex, BAG_BACKPACK, 
+        dialogTitle or GetString(SI_CBE_CRAFTBAG_RETRIEVE_QUANTITY), 
+        buttonText or GetString(SI_ITEM_ACTION_REMOVE_ITEMS_FROM_CRAFT_BAG), 
+        callback )
 end
 
 --[[ Moves a given quantity from the given backpack inventory slot index into 
@@ -97,10 +138,12 @@ end
 --[[ Opens the "Stow" to craft bag dialog with a custom action name for
      the transfer button.  Automatically runs a given callback once the transfer
      is complete, if specified. ]]
-function CraftBagExtended:StowDialog(backpackSlotIndex, dialogTitle, buttonText, callback)
-    return self.modules.inventory:TransferDialog( 
-        BAG_BACKPACK, backpackSlotIndex, BAG_VIRTUAL, 
-        dialogTitle, buttonText, callback )
+function CraftBagExtended:StowDialog(slotIndex, dialogTitle, buttonText, callback)
+    return self.utility.TransferDialog( 
+        BAG_BACKPACK, slotIndex, BAG_VIRTUAL, 
+        dialogTitle or GetString(SI_CBE_CRAFTBAG_STOW_QUANTITY), 
+        buttonText or GetString(SI_ITEM_ACTION_ADD_ITEMS_TO_CRAFT_BAG), 
+        callback )
 end
 
 --[[ Moves a given quantity of a craft bag slot to the backpack and then adds it
@@ -144,18 +187,12 @@ local function OnAddonLoaded(event, name)
     
     local class = self.classes
     
-    self.backpackTransferQueue = 
-        class.TransferQueue:New(
-            self.name .. "BackpackQueue", 
-            BAG_VIRTUAL, 
-            BAG_BACKPACK
-        )
-    
     self.settings  = class.Settings:New()
     
     self.modules = {
-        inventory = class.Inventory:New(),
+        bank      = class.Bank:New(),
         guildBank = class.GuildBank:New(),
+        inventory = class.Inventory:New(),
         mail      = class.Mail:New(),
         trade     = class.Trade:New(),
     }

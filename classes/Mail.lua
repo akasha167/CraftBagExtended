@@ -1,18 +1,22 @@
 local cbe   = CraftBagExtended
 local util  = cbe.utility
 local class = cbe.classes
-class.Mail  = class.Controller:Subclass()
+class.Mail  = class.Module:Subclass()
 
 local name = cbe.name .. "Mail"
 local debug = false
 
 function class.Mail:New(...)
-    local instance = class.Controller.New(self, 
+    local instance = class.Module.New(self, 
         name, "mailSend", ZO_MailSend, BACKPACK_MAIL_LAYOUT_FRAGMENT)
-    instance.menu:SetAnchor(TOPRIGHT, ZO_MailSend, TOPLEFT, ZO_MailSendTo:GetWidth(), 22)
+    instance:Setup()
+    return instance
+end
+
+function class.Mail:Setup()
+    self.menu:SetAnchor(TOPRIGHT, ZO_MailSend, TOPLEFT, ZO_MailSendTo:GetWidth(), 22)
     util.RemapKeybind(MAIL_SEND.staticKeybindStripDescriptor, 
         "UI_SHORTCUT_SECONDARY", "UI_SHORTCUT_TERTIARY")
-    return instance
 end
 
 --[[ Returns true if the mail send interface is currently open. Otherwise returns false. ]]
@@ -56,7 +60,7 @@ local function IsAttached(bag, slotIndex)
     end
 end
 
---[[ Called after a Retrieve and Add to Mail operation successfully retrieves a craft bag item 
+--[[ Called after a Retrieve operation successfully retrieves a craft bag item 
      to the backpack. Responsible for executing the "Add to Mail" part of the operation. ]]
 local function RetrieveCallback(transferItem)
 
@@ -130,26 +134,29 @@ function class.Mail:AddSlotActions(slotInfo)
         slotInfo.fromCraftBag = slot.fromCraftBag
     end
     
-    --[[ Detach and Stow ]]
     if IsAttached(slotInfo.bag, slotInfo.slotIndex) then
         if slotInfo.fromCraftBag then
-            slotInfo.slotActions:AddSlotAction(
+            --[[ Remove from Mail ]]
+            table.insert(slotInfo.slotActions, {
                 SI_ITEM_ACTION_MAIL_DETACH, 
                 function() cbe:MailDetach(slotInfo.slotIndex) end, 
-                "primary")
+                "primary"
+            })
         end
         
     elseif slotInfo.slotType == SLOT_TYPE_CRAFT_BAG_ITEM then
         --[[ Add to Mail ]]
-        slotInfo.slotActions:AddSlotAction(
+        table.insert(slotInfo.slotActions, {
             SI_ITEM_ACTION_MAIL_ATTACH, 
             function() cbe:MailAttach(slotInfo.slotIndex) end, 
-            "primary")
-        --[[ Add to Mail quantity ]]
-        slotInfo.slotActions:AddSlotAction(
+            "primary"
+        })
+        --[[ Add Quantity ]]
+        table.insert(slotInfo.slotActions, {
             SI_CBE_CRAFTBAG_MAIL_ATTACH, 
             function() cbe:MailAttachDialog(slotInfo.slotIndex) end, 
-            "keybind1")
+            "keybind1"
+        })
     end
 end
 
@@ -192,11 +199,8 @@ function class.Mail:Detach(slotIndex, detachedCallback, stowedCallback)
     
     RemoveQueuedItemAttachment(attachmentSlotIndex)
     
-    -- Update the keybind strip command
-    local inventorySlot = util.GetInventorySlot(BAG_BACKPACK, slotIndex)
-    if inventorySlot then
-        ZO_InventorySlot_OnMouseEnter(inventorySlot)
-    end
+    -- Clear the keybind strip command
+    ZO_InventorySlot_OnMouseExit(MAIL_SEND.attachmentSlots[attachmentSlotIndex])
     
     -- Callback that the detachment succeeded
     if type(detachedCallback) == "function" then

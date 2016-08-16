@@ -1,27 +1,16 @@
 local cbe   = CraftBagExtended
 local util  = cbe.utility
 local class = cbe.classes
-class.Trade = class.Controller:Subclass()
+class.Trade = class.Module:Subclass()
 
 local name = cbe.name .. "Trade"
 local debug = false
 
 function class.Trade:New(...)
-    local controller = class.Controller.New(self, 
+    local instance = class.Module.New(self, 
         name, "trade", ZO_Trade, BACKPACK_PLAYER_TRADE_LAYOUT_FRAGMENT)
-    controller:Setup(...)
-    return controller
-end
-
---[[ Returns the index of the trade item slot that's bound to a given backpack slot, 
-     or nil if it's not in the current trade offer. ]]
-local function GetTradeSlotIndex(slotIndex)     
-    for i = 1, TRADE_NUM_SLOTS do
-        local _, tradeItemSlotIndex = GetTradeItemBagAndSlot(TRADE_ME, i)
-        if tradeItemSlotIndex and slotIndex == tradeItemSlotIndex then
-            return i
-        end
-    end
+    instance:Setup(...)
+    return instance
 end
 
 local function OnTradeItemAdded(eventCode, who, tradeIndex, itemSoundCategory)
@@ -42,16 +31,37 @@ local function OnTradeItemRemoved(eventCode, who, tradeIndex, itemSoundCategory)
     if not transferItem then return end
     cbe.tradeSlotRemovalQueue[tradeIndex] = nil
 
-    -- Update the keybind strip command
+    -- Clear the keybind strip command
     local inventorySlot = util.GetInventorySlot(BAG_BACKPACK, transferItem.slotIndex)
     if inventorySlot then
-        ZO_InventorySlot_OnMouseEnter(inventorySlot)
+        ZO_InventorySlot_OnMouseExit(inventorySlot)
     end
     
     transferItem:ExecuteCallback(tradeIndex, tradeIndex)
     
     -- Transfer mats back to craft bag
     cbe:Stow(transferItem.slotIndex, nil, transferItem.callback)
+end
+
+function class.Trade:Setup()
+    cbe.tradeSlotRemovalQueue = {}
+    self.menu:SetAnchor(BOTTOMRIGHT, ZO_TradeMyControls, TOPRIGHT, 0, -12)
+    util.RemapKeybind(TRADE.keybindStripDescriptor, 
+        "UI_SHORTCUT_SECONDARY", "UI_SHORTCUT_TERTIARY") 
+    -- Listen for bag slot update events so that we can process the callbacks
+    EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_TRADE_ITEM_ADDED, OnTradeItemAdded)
+    EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_TRADE_ITEM_REMOVED, OnTradeItemRemoved)
+end
+
+--[[ Returns the index of the trade item slot that's bound to a given backpack slot, 
+     or nil if it's not in the current trade offer. ]]
+local function GetTradeSlotIndex(slotIndex)     
+    for i = 1, TRADE_NUM_SLOTS do
+        local _, tradeItemSlotIndex = GetTradeItemBagAndSlot(TRADE_ME, i)
+        if tradeItemSlotIndex and slotIndex == tradeItemSlotIndex then
+            return i
+        end
+    end
 end
 
 --[[ Called after an Add to Offer operation successfully retrieves a craft bag item 
@@ -87,28 +97,31 @@ function class.Trade:AddSlotActions(slotInfo)
         slotInfo.fromCraftBag = slot.fromCraftBag
     end
     
-    --[[ Remove from Offer ]]
     if ZO_IsItemCurrentlyOfferedForTrade(slotInfo.bag, slotInfo.slotIndex) then
         if slotInfo.fromCraftBag then
-            slotInfo.slotActions:AddSlotAction(
+            --[[ Remove from Offer ]]
+            table.insert(slotInfo.slotActions, {
                 SI_ITEM_ACTION_TRADE_REMOVE, 
                 function() cbe:TradeRemoveFromOffer(slotInfo.slotIndex) end, 
-                "primary")
+                "primary"
+            })
         end
         
     elseif slotInfo.slotType == SLOT_TYPE_CRAFT_BAG_ITEM
            and ZO_SharedTradeWindow.FindMyNextAvailableSlot(ZO_Trade) 
     then
         --[[ Add to Offer ]]
-        slotInfo.slotActions:AddSlotAction(
+        table.insert(slotInfo.slotActions, {
             SI_ITEM_ACTION_TRADE_ADD, 
             function() cbe:TradeAddToOffer(slotInfo.slotIndex) end, 
-            "primary")
-        --[[ Add to Offer quantity ]]
-        slotInfo.slotActions:AddSlotAction(
+            "primary"
+        })
+        --[[ Add to Quantity ]]
+        table.insert(slotInfo.slotActions, {
             SI_CBE_CRAFTBAG_TRADE_ADD, 
             function() cbe:TradeAddToOfferDialog(slotInfo.slotIndex) end, 
-            "keybind1")
+            "keybind1"
+        })
     end
 end
 
@@ -176,14 +189,4 @@ function class.Trade:RemoveFromOffer(slotIndex, removedCallback, stowedCallback)
     TradeRemoveItem(tradeIndex)
     
     return CanItemBeVirtual(BAG_BACKPACK, slotIndex)
-end
-
-function class.Trade:Setup()
-    cbe.tradeSlotRemovalQueue = {}
-    self.menu:SetAnchor(BOTTOMRIGHT, ZO_TradeMyControls, TOPRIGHT, 0, -12)
-    util.RemapKeybind(TRADE.keybindStripDescriptor, 
-        "UI_SHORTCUT_SECONDARY", "UI_SHORTCUT_TERTIARY") 
-    -- Listen for bag slot update events so that we can process the callbacks
-    EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_TRADE_ITEM_ADDED, OnTradeItemAdded)
-    EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_TRADE_ITEM_REMOVED, OnTradeItemRemoved)
 end

@@ -3,10 +3,10 @@ local util      = cbe.utility
 local class     = cbe.classes
 local name      = cbe.name .. "GuildBank"
 local debug     = false
-class.GuildBank = class.Controller:Subclass()
+class.GuildBank = class.Module:Subclass()
 
 function class.GuildBank:New(...)        
-    local instance = class.Controller.New(self, 
+    local instance = class.Module.New(self, 
         name, "guildBank", 
         ZO_SharedRightPanelBackground, BACKPACK_GUILD_BANK_LAYOUT_FRAGMENT,
         ZO_GuildBankMenuBar, SI_BANK_DEPOSIT,
@@ -45,8 +45,7 @@ local function OnGuildBankTransferFailed(eventCode, reason)
     
     for i,transferItem in ipairs(depositQueue.items) do
         
-        local itemLink = GetItemLink(transferItem.bag, transferItem.slotIndex)
-        util.Debug("Moving "..itemLink.." back to craft bag due to bank transfer error "..tostring(reason), debug)
+        util.Debug("Moving "..transferItem.itemLink.." back to craft bag due to bank transfer error "..tostring(reason), debug)
         cbe:Stow(transferItem.slotIndex)
     end
 end
@@ -102,7 +101,7 @@ local function RetrieveCallback(transferItem)
     
     util.Debug("Transferring "..tostring(transferItem.targetBag)
                ..", "..tostring(transferItem.targetSlotIndex)..", x"
-               ..tostring(transferItem.quantity).." to "..BAG_GUILDBANK, debug)
+               ..tostring(transferItem.quantity).." to guild bank", debug)
                
     -- Perform the deposit
     TransferToGuildBank(transferItem.targetBag, transferItem.targetSlotIndex)
@@ -145,7 +144,7 @@ local function ValidateCanDeposit(bag, slotIndex)
     -- Don't transfer stolen items.  Shouldn't come up from this addon, since
     -- the craft bag filters stolen items out when in the guild bank. However,
     -- good to check anyways in case some other addon uses this class.
-    if(IsItemStolen(sourceBag, sourceSlot)) then
+    if(IsItemStolen(bag, slotIndex)) then
         ZO_AlertEvent(EVENT_GUILD_BANK_TRANSFER_ERROR, GUILD_BANK_NO_DEPOSIT_STOLEN_ITEM)
         return false
     end
@@ -165,18 +164,18 @@ function class.GuildBank:AddSlotActions(slotInfo)
     local slotIndex = slotInfo.slotIndex
     
     --[[ Deposit ]]--
-    slotInfo.slotActions:AddSlotAction(
+    table.insert(slotInfo.slotActions, {
         SI_BANK_DEPOSIT,  
         function() cbe:GuildBankDeposit(slotIndex) end,
         "primary"
-    )
+    })
     
     --[[ Deposit quantity ]]--
-    slotInfo.slotActions:AddSlotAction(
+    table.insert(slotInfo.slotActions, {
         SI_CBE_CRAFTBAG_BANK_DEPOSIT,  
         function() cbe:GuildBankDepositDialog(slotIndex) end,
         "keybind1"
-    )
+    })
 end
 
 --[[ Retrieves a given quantity of mats from a given craft bag slot index, 

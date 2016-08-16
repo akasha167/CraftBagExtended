@@ -1,9 +1,9 @@
-local cbe        = CraftBagExtended
-local util       = cbe.utility
-local class      = cbe.classes
-class.Controller = ZO_Object:Subclass()
+local cbe    = CraftBagExtended
+local util   = cbe.utility
+local class  = cbe.classes
+class.Module = ZO_Object:Subclass()
 
-function class.Controller:New(...)
+function class.Module:New(...)
     local instance = ZO_Object.New(self)
     instance:Initialize(...)
     return instance
@@ -13,8 +13,7 @@ local function IsShown(self)
     if self.tabMenuBar and self.tabName then
         return self.tabMenuBar.m_object:GetSelectedDescriptor() == self.tabName
     else
-        local scene = SCENE_MANAGER.scenes[self.sceneName]
-        return scene.state == SCENE_SHOWN
+        return self:IsSceneShown()
     end
 end
 
@@ -62,7 +61,7 @@ end
 
 --[[ Button click callback for toggling between backpack and craft bag. ]]
 local function OnCraftBagMenuButtonClicked(buttonData, playerDriven)-- Do nothing on menu button clicks when not trading.
-    local self = buttonData.menu.controller
+    local self = buttonData.menu.craftBagExtendedModule
     if not IsShown(self) then
         return
     end
@@ -77,7 +76,7 @@ local function OnCraftBagMenuButtonClicked(buttonData, playerDriven)-- Do nothin
 end
 
 local function PreTabButtonClicked(buttonData, playerDriven)
-    local self = buttonData.controller
+    local self = buttonData.craftBagExtendedModule
     if buttonData.descriptor == self.tabName then
         self.menu:SetHidden(false)
     else
@@ -85,16 +84,19 @@ local function PreTabButtonClicked(buttonData, playerDriven)
     end
 end
 
-function class.Controller:Initialize(name, sceneName, window, layoutFragment, tabMenuBar, tabName, keybindButtonGroup, keybindToRemove)
+function class.Module:Initialize(name, sceneName, window, layoutFragment, tabMenuBar, tabName, keybindButtonGroup, keybindToRemove)
 
-    self.name = name or cbe.name .. "Controller"
+    self.name = name or cbe.name .. "Module"
     self.sceneName = sceneName
+    
+    if not window then return end
+    
     self.window = window
     self.layoutFragment = layoutFragment
     
     --[[ Create craft bag menu ]]
     self.menu = CreateControlFromVirtual(self.name.."Menu", self.window, "ZO_LabelButtonBar")
-    self.menu.controller = self
+    self.menu.craftBagExtendedModule = self
     
     -- Items button
     util.AddItemsButton(self.menu, OnCraftBagMenuButtonClicked)
@@ -104,6 +106,9 @@ function class.Controller:Initialize(name, sceneName, window, layoutFragment, ta
     
     -- Select items button
     ZO_MenuBar_SelectFirstVisibleButton(self.menu, true)
+    
+    -- Hide menu by default
+    self.menu:SetHidden(true)
     
     --[[ Handle scene open close events ]]
     SCENE_MANAGER.scenes[self.sceneName]:RegisterCallback("StateChange", 
@@ -135,7 +140,7 @@ function class.Controller:Initialize(name, sceneName, window, layoutFragment, ta
     for i,tabButtonInfo in ipairs(self.tabMenuBar.m_object.m_buttons) do
         local control = tabButtonInfo[1]
         local tabButtonData = control.m_object.m_buttonData
-        tabButtonData.controller = self
+        tabButtonData.craftBagExtendedModule = self
         util.PreHookCallback(tabButtonData, "callback", PreTabButtonClicked)
     end
     self.sceneManagerAddFragmentGroup = SCENE_MANAGER.AddFragmentGroup
@@ -147,4 +152,9 @@ function class.Controller:Initialize(name, sceneName, window, layoutFragment, ta
                 self.sceneManagerAddFragmentGroup = nil
             end
         end)
+end
+
+function class.Module:IsSceneShown()
+    local scene = SCENE_MANAGER.scenes[self.sceneName]
+    return scene.state == SCENE_SHOWN
 end

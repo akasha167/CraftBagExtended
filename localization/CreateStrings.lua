@@ -29,6 +29,18 @@ ZO_CreateStringId("SI_CBE_CRAFTBAG_MAIL_ATTACH",
     GetString(SI_GAMEPAD_MAIL_SEND_ATTACH_ITEM)
     ..GetString(SI_CBE_WORD_BREAK)
     ..GetString(SI_TRADING_HOUSE_POSTING_QUANTITY))
+
+-- Combine the built-in "Retrieve" and "Quantity" terms,
+ZO_CreateStringId("SI_CBE_CRAFTBAG_RETRIEVE_QUANTITY", 
+    GetString(SI_ITEM_ACTION_REMOVE_ITEMS_FROM_CRAFT_BAG)
+    ..GetString(SI_CBE_WORD_BREAK)
+    ..GetString(SI_TRADING_HOUSE_POSTING_QUANTITY))
+
+-- Combine the built-in "Stow" and "Quantity" terms,
+ZO_CreateStringId("SI_CBE_CRAFTBAG_STOW_QUANTITY", 
+    GetString(SI_ITEM_ACTION_ADD_ITEMS_TO_CRAFT_BAG)
+    ..GetString(SI_CBE_WORD_BREAK)
+    ..GetString(SI_TRADING_HOUSE_POSTING_QUANTITY))
     
 -- Combine the built-in "Add" and "Quantity" terms
 ZO_CreateStringId("SI_CBE_CRAFTBAG_TRADE_ADD", 

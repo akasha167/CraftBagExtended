@@ -5,7 +5,7 @@ local util = cbe.utility
 local function OnCraftBagFragmentStateChange(oldState, newState)
     -- On craft bag exit, stop listening for any transfers
     if newState == SCENE_FRAGMENT_HIDDEN then 
-        cbe.backpackTransferQueue:Clear()
+        util:ClearTransferQueues()
         return 
     -- On craft bag showing event, move the info bar to the craft bag
     elseif newState == SCENE_FRAGMENT_SHOWING then
@@ -38,17 +38,17 @@ local function OnInventorySingleSlotUpdate(eventCode, bagId, slotId, isNewItem, 
         return 
     end
     
-    -- This flag marks backpack slots for return/stow actions
-    if sourceBagId == BAG_VIRTUAL then
+    -- This flag marks inventory and bank slots for return/stow actions
+    if bagId ~= BAG_VIRTUAL and not transferredItem.noAutoReturn then
         SHARED_INVENTORY:GenerateSingleSlotData(bagId, slotId).fromCraftBag = true
     end
-    
-    -- Perform any configured callbacks
-    transferredItem:ExecuteCallback(slotId)
     
     -- Refresh the appropriate bag slot list
     local inventoryType = PLAYER_INVENTORY.bagToInventoryType[bagId]
     PLAYER_INVENTORY:UpdateList(inventoryType, true)
+    
+    -- Perform any configured callbacks
+    transferredItem:ExecuteCallback(slotId)
 end
 
 --[[ Handle scene changes involving a craft bag. ]]
@@ -64,25 +64,41 @@ local function OnModuleSceneStateChange(oldState, newState)
     end
 end
 
---[[ When listening for transfer callbacks, handle any "Inventory Full"
-     alerts that get raised by stopping all transfers. ]]
-local function OnTransferDialogFailed(category, soundId, message, ...)
-    if not cbe.backpackTransferQueue:HasItems() then return end
-    local errorStringId = SI_INVENTORY_ERROR_INVENTORY_FULL or SI_INVENTORY_ERROR_BANK_FULL
-    if message == errorStringId then
-        cbe.backpackTransferQueue:Clear()
-    end
-end
-
---[[ Do not add duplicate inventory slot context menu actions with the same names ]]
+--[[ Suppress existing slot actions that would conflict with ours. ]]
 local function PreAddSlotAction(slotActions, actionStringId, actionCallback, actionType, visibilityFunction, options)
-    local actionName = GetString(actionStringId)
-    for i=1,slotActions:GetNumSlotActions() do
-        local action = slotActions:GetSlotAction(i)
-        if action and action[1] == actionName then
+    if cbe.addingSlotActions or not cbe.currentSlotActions then return end
+    for _, moduleSlotAction in ipairs(cbe.currentSlotActions) do
+        if moduleSlotAction[1] == actionStringId then
             return true
         end
     end
+end
+
+--[[ When listening for transfer callbacks, handle any inventory or bank full
+     alerts that get raised by stopping all transfers. ]]
+local function PreAlert(category, soundId, message, ...)
+    if message == SI_INVENTORY_ERROR_INVENTORY_FULL 
+	   or message == SI_INVENTORY_ERROR_BANK_FULL
+	then
+        util:ClearTransferQueues()
+    end
+end
+
+local function PreInventorySlotActionsGetAction(slotActions)
+    if not cbe.currentSlotActions then return end
+    if slotActions.craftBagExtendedPostHooked then return end
+    cbe.addingSlotActions = true
+    for _, moduleSlotAction in ipairs(cbe.currentSlotActions) do
+        if moduleSlotAction[3] == "secondary" then
+            slotActions:AddSlotAction(unpack(moduleSlotAction))
+        end
+    end
+    cbe.addingSlotActions = nil
+    slotActions.craftBagExtendedPostHooked = true
+end
+
+local function PreInventorySlotActionsClear(slotActions)
+    slotActions.craftBagExtendedPostHooked = false
 end
 
 --[[ Insert our custom craft bag actions into the keybind buttons and 
@@ -101,9 +117,8 @@ local function PreDiscoverSlotActions(inventorySlot, slotActions)
         bag, slotIndex = ZO_Inventory_GetBagAndIndex(inventorySlot)
     end
     
-    -- We don't have any slot actions for bags other than the backpack, the
-    -- craft bag, and the guild bank.
-    if bag ~= BAG_BACKPACK and bag ~= BAG_VIRTUAL and bag ~= BAG_GUILDBANK then
+    -- We don't have any slot actions for bags other than those in BAG_TYPES
+    if not cbe.constants.BAG_TYPES[bag] then
         return
     end
     
@@ -114,18 +129,36 @@ local function PreDiscoverSlotActions(inventorySlot, slotActions)
     
     local fromCraftBag = slotData.fromCraftBag
     
-    if slotType == SLOT_TYPE_CRAFT_BAG_ITEM or slotType == SLOT_TYPE_MAIL_QUEUED_ATTACHMENT or slotType == SLOT_TYPE_MY_TRADE or fromCraftBag then
+    if fromCraftBag or cbe.constants.SLOT_TYPES[slotType] then
+        
+        if not slotActions.craftBagExtendedHooked then
+            ZO_PreHook(slotActions, "Clear", PreInventorySlotActionsClear)
+            ZO_PreHook(slotActions, "GetAction", PreInventorySlotActionsGetAction)
+            ZO_PreHook(slotActions, "Show", PreInventorySlotActionsGetAction)
+            slotActions.craftBagExtendedHooked = true
+        end
+        cbe.currentSlotActions = {}
         local slotInfo = { 
             inventorySlot = inventorySlot,
             slotType      = slotType, 
             bag           = bag,
             slotIndex     = slotIndex,
+            slotData      = slotData,
             fromCraftBag  = fromCraftBag, 
-            slotActions   = slotActions 
+            slotActions   = cbe.currentSlotActions,
         }
         for moduleName,module in pairs(cbe.modules) do
-            module:AddSlotActions(slotInfo)
+            if type(module.AddSlotActions) == "function" then
+                module:AddSlotActions(slotInfo)
+            end
         end
+        cbe.addingSlotActions = true
+        for _, moduleSlotAction in ipairs(cbe.currentSlotActions) do
+            if moduleSlotAction[3] ~= "secondary" then
+                slotActions:AddSlotAction(unpack(moduleSlotAction))
+            end
+        end
+        cbe.addingSlotActions = nil
     end
 end
 
@@ -180,21 +213,11 @@ local function PreTransferDialogFinished(dialog)
         end
         transferItem.queue:SetQuantity(transferItem, quantity)
     end
-
-    --[[ Change the transfer dialog's title and button text back to the defaults
-    transferDialogInfo.title.text = SI_PROMPT_TITLE_REMOVE_ITEMS_FROM_CRAFT_BAG
-    transferDialogInfo.buttons[1].text = SI_ITEM_ACTION_REMOVE_ITEMS_FROM_CRAFT_BAG
-    
-    -- Restore the transfer button's callback function to its original state
-    if type(transferDialogInfo.originalTransferCallback) == "function" then
-        transferDialogInfo.buttons[1].callback = transferDialogInfo.originalTransferCallback
-        transferDialogInfo.originalTransferCallback = nil
-    end]]
 end
 
 function CraftBagExtended:InitializeHooks()
 
-    ZO_PreHook("ZO_Alert", OnTransferDialogFailed)
+    ZO_PreHook("ZO_Alert", PreAlert)
     
     -- Disallow duplicates with same names
     ZO_PreHook(ZO_InventorySlotActions, "AddSlotAction", PreAddSlotAction)

@@ -2,6 +2,7 @@ local cbe     = CraftBagExtended
 local class   = cbe.classes
 class.Utility = ZO_Object:Subclass()
 local util    = class.Utility
+local debug   = false
 function util:New(...)
     self.name = cbe.name .. "Utility"
     self.transferQueueCache = {}
@@ -47,6 +48,16 @@ function util.AddItemsButton(menuBar, callback)
     local buttonData = CreateButtonData(menuBar, SI_INVENTORY_MODE_ITEMS, "items", callback)
     local button = ZO_MenuBar_AddButton(menuBar, buttonData)
     return button
+end
+
+--[[ Removes all queued transfers ]]
+function util.ClearTransferQueues()
+    local self = cbe.utility
+    for _, transferQueueList in pairs(self.transferQueueCache) do
+        for _, transferQueue in pairs(transferQueueList) do
+            transferQueue:Clear()
+        end
+    end
 end
 
 --[[ Outputs formatted message to chat window if debugging is turned on ]]
@@ -192,6 +203,104 @@ function util.RemapKeybind(descriptors, oldKeybind, newKeybind)
         if descriptor.keybind == oldKeybind then
             descriptor.keybind = newKeybind
         end
+    end
+end
+
+--[[ Opens the "Retrieve" or "Stow" transfer dialog with a custom action name for
+     the transfer button.  Automatically runs a given callback once the transfer
+     is complete, if specified. ]]
+function util.TransferDialog(bag, slotIndex, targetBag, dialogTitle, buttonText, callback)
+    
+    -- Validate that the transfer is legit
+    if targetBag == BAG_BACKPACK or targetBag == BAG_BANK then
+        if not util.ValidateSlotAvailable(targetBag) then
+            return false
+        end
+    elseif bag == BAG_BACKPACK and targetBag == BAG_VIRTUAL then
+        if not CanItemBeVirtual(BAG_BACKPACK, slotIndex) then
+            return false
+        end
+    else
+        return false
+    end
+    
+    -- Override the text of the transfer dialog's title and/or button
+    local transferDialogInfo = util.GetRetrieveDialogInfo()
+    
+    -- Wire up callback
+    if type(callback) == "function" or type(callback) == "table" then
+        local transferQueue = util.GetTransferQueue( bag, targetBag )
+        local transferItem = 
+            transferQueue:StartWaitingForTransfer(
+                slotIndex, 
+                callback, 
+                cbe.constants.QUANTITY_UNSPECIFIED
+            )
+        if not transferItem then return end
+        
+        -- Do not remove. Used by the dialog finished hooks to properly set the
+        -- stack quantity.
+        cbe.transferDialogItem = transferItem
+    end
+    
+    if dialogTitle then
+        transferDialogInfo.title.text = dialogTitle
+    end
+    if buttonText then
+        transferDialogInfo.buttons[1].text = buttonText
+    end
+    
+    -- Open the transfer dialog
+    local transferDialog = SYSTEMS:GetObject("ItemTransferDialog")
+    transferDialog:StartTransfer(bag, slotIndex, targetBag)
+    
+    return true
+end
+
+--[[ Moves a given quantity from the given craft bag inventory slot index into 
+     the given bag without a dialog prompt.  
+     If quantity is nil, then the max stack is moved. If a callback function 
+     is specified, it will be called when the mats arrive in the target bag. ]]
+function util.TransferItemToBag(bag, slotIndex, targetBag, quantity, callback)
+    
+    -- Find the first free slot in the target bag
+    local targetSlotIndex = util.ValidateSlotAvailable(targetBag)
+    if not targetSlotIndex then
+        return false
+    end
+    
+    -- Queue up the transfer
+    local transferQueue = util.GetTransferQueue(bag, targetBag)
+    local transferItem = transferQueue:Enqueue(slotIndex, quantity, callback)
+    if not quantity then
+        quantity = transferItem.quantity
+    end
+    
+    util.Debug("Retrieving "..tostring(quantity).." from "
+               ..util.GetBagName(bag).." slotIndex "..tostring(slotIndex)
+               .." to "..util.GetBagName(targetBag)
+               .." slotIndex "..tostring(targetSlotIndex), debug)
+    
+    -- Initiate the stack move to the target bag
+    if IsProtectedFunction("RequestMoveItem") then
+        CallSecureProtected("RequestMoveItem", bag, slotIndex, 
+                            targetBag, targetSlotIndex, quantity)
+    else
+        RequestMoveItem(bag, slotIndex, 
+                        targetBag, targetSlotIndex, quantity)
+    end
+    
+    return true
+end
+
+function util.ValidateSlotAvailable(targetBag)
+    local targetSlotIndex = FindFirstEmptySlotInBag(targetBag)
+    if targetSlotIndex then
+        return targetSlotIndex
+    elseif targetBag == BAG_BACKPACK then
+        ZO_AlertEvent(EVENT_INVENTORY_IS_FULL, 1, 0)
+    elseif targetBag == BAG_BANK then
+        ZO_Alert(UI_ALERT_CATEGORY_ERROR, SOUNDS.NEGATIVE_CLICK, SI_INVENTORY_ERROR_BANK_FULL)
     end
 end
 
