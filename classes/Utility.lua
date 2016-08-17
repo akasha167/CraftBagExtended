@@ -104,6 +104,17 @@ function util.GetRetrieveDialogInfo()
     return ESO_Dialogs[transferDialogInfoIndex]
 end
 
+--[[ Gets the config table for the "Stow" from craft bag dialog. ]]
+function util.GetStowDialogInfo()
+    local transferDialogInfoIndex
+    if IsInGamepadPreferredMode() then
+        transferDialogInfoIndex = "ITEM_TRANSFER_ADD_TO_CRAFT_BAG_GAMEPAD"
+    else
+        transferDialogInfoIndex = "ITEM_TRANSFER_ADD_TO_CRAFT_BAG_KEYBOARD"
+    end
+    return ESO_Dialogs[transferDialogInfoIndex]
+end
+
 --[[ Searches all available cached transfer queues for an item that is queued
      up for transfer to the given bag. If found, dequeues the transfer item and 
      returns it and the source bag it was transferred from. ]]
@@ -212,20 +223,20 @@ end
 function util.TransferDialog(bag, slotIndex, targetBag, dialogTitle, buttonText, callback)
     
     -- Validate that the transfer is legit
+    local transferDialogInfo
     if targetBag == BAG_BACKPACK or targetBag == BAG_BANK then
         if not util.ValidateSlotAvailable(targetBag) then
             return false
         end
+        transferDialogInfo = util.GetRetrieveDialogInfo()
     elseif bag == BAG_BACKPACK and targetBag == BAG_VIRTUAL then
         if not CanItemBeVirtual(BAG_BACKPACK, slotIndex) then
             return false
         end
+        transferDialogInfo = util.GetStowDialogInfo()
     else
         return false
     end
-    
-    -- Override the text of the transfer dialog's title and/or button
-    local transferDialogInfo = util.GetRetrieveDialogInfo()
     
     -- Wire up callback
     if type(callback) == "function" or type(callback) == "table" then
@@ -243,6 +254,7 @@ function util.TransferDialog(bag, slotIndex, targetBag, dialogTitle, buttonText,
         cbe.transferDialogItem = transferItem
     end
     
+    -- Override the text of the transfer dialog's title and/or button
     if dialogTitle then
         transferDialogInfo.title.text = dialogTitle
     end
