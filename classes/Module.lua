@@ -11,34 +11,10 @@ end
 
 local function IsShown(self)
     if self.tabMenuBar and self.tabName then
-        return self.tabMenuBar.m_object:GetSelectedDescriptor() == self.tabName
+        return self.tabMenuBar.m_object.m_clickedButton.m_buttonData.categoryName == self.tabName
     else
         return self:IsSceneShown()
     end
-end
-
-local function ReplaceKeybind(self)
-    if not self.keybindButtonGroup or not self.keybindButtonToRemove then 
-        return 
-    end
-    KEYBIND_STRIP:RemoveKeybindButtonGroup(self.keybindButtonGroup)
-    table.insert(self.keybindButtonGroup, self.keybindButtonToRemove)
-    KEYBIND_STRIP:AddKeybindButtonGroup(self.keybindButtonGroup)
-end
-
-local function RemoveKeybind(self)
-    if not self.keybindButtonGroup or not self.keybindButtonToRemove then 
-        return 
-    end
-    KEYBIND_STRIP:RemoveKeybindButtonGroup(self.keybindButtonGroup)
-    for i=#self.keybindButtonGroup,1,-1 do
-        local keybindButton = self.keybindButtonGroup[i]
-        if keybindButton == self.keybindButtonToRemove then
-            table.remove(self.keybindButtonGroup, i)
-            break;
-        end
-    end
-    KEYBIND_STRIP:AddKeybindButtonGroup(self.keybindButtonGroup)
 end
 
 local function SwapFragments(self, removeFragment, addFragment, layoutFragment)
@@ -67,24 +43,13 @@ local function OnCraftBagMenuButtonClicked(buttonData, playerDriven)-- Do nothin
     end
     if buttonData.descriptor == SI_INVENTORY_MODE_CRAFT_BAG then
         if CRAFT_BAG_FRAGMENT.state == SCENE_FRAGMENT_SHOWN then return end
-        RemoveKeybind(self)
         SwapFragments(self, INVENTORY_FRAGMENT, CRAFT_BAG_FRAGMENT, self.layoutFragment)
     elseif CRAFT_BAG_FRAGMENT.state == SCENE_FRAGMENT_SHOWN then
         SwapFragments(self, CRAFT_BAG_FRAGMENT, INVENTORY_FRAGMENT, self.layoutFragment)
-        ReplaceKeybind(self)
     end
 end
 
-local function PreTabButtonClicked(buttonData, playerDriven)
-    local self = buttonData.craftBagExtendedModule
-    if buttonData.descriptor == self.tabName then
-        self.menu:SetHidden(false)
-    else
-        self.menu:SetHidden(true)
-    end
-end
-
-function class.Module:Initialize(name, sceneName, window, layoutFragment, tabMenuBar, tabName, keybindButtonGroup, keybindToRemove)
+function class.Module:Initialize(name, sceneName, window, layoutFragment, tabMenuBar, tabName)
 
     self.name = name or cbe.name .. "Module"
     self.sceneName = sceneName
@@ -116,10 +81,13 @@ function class.Module:Initialize(name, sceneName, window, layoutFragment, tabMen
             if newState == SCENE_HIDING then
                 self.menu:SetHidden(true)
             elseif newState == SCENE_SHOWING then
-                if self.tabMenuBar and self.tabName and self.tabMenuBar.m_object:GetSelectedDescriptor() ~= self.tabName then
-                    return
+                local hide = self.tabMenuBar and self.tabName 
+                             and self.tabMenuBar.m_object.m_clickedButton.m_buttonData.categoryName ~= self.tabName
+                self.menu:SetHidden(hide)
+                if hide and not self.fragmentGroup then
+                    local scene = SCENE_MANAGER.scenes[self.sceneName]
+                    scene:RemoveFragment(CRAFT_BAG_FRAGMENT)
                 end
-                self.menu:SetHidden(false)
             end
         end)
     
@@ -128,20 +96,12 @@ function class.Module:Initialize(name, sceneName, window, layoutFragment, tabMen
     end
     self.tabMenuBar = tabMenuBar
     self.tabName = tabName
-    if keybindButtonGroup and keybindToRemove then
-        self.keybindButtonGroup = keybindButtonGroup
-        for i, keybindButton in ipairs(keybindButtonGroup) do
-            if keybindButton.keybind == keybindToRemove then
-                self.keybindButtonToRemove = keybindButton
-                break
-            end
-        end
-    end
+    
     for i,tabButtonInfo in ipairs(self.tabMenuBar.m_object.m_buttons) do
         local control = tabButtonInfo[1]
         local tabButtonData = control.m_object.m_buttonData
         tabButtonData.craftBagExtendedModule = self
-        util.PreHookCallback(tabButtonData, "callback", PreTabButtonClicked)
+        util.PreHookCallback(tabButtonData, "callback", self.PreTabButtonClicked)
     end
     self.sceneManagerAddFragmentGroup = SCENE_MANAGER.AddFragmentGroup
     ZO_PreHook(SCENE_MANAGER, "AddFragmentGroup", 
@@ -157,4 +117,13 @@ end
 function class.Module:IsSceneShown()
     local scene = SCENE_MANAGER.scenes[self.sceneName]
     return scene.state == SCENE_SHOWN
+end
+
+function class.Module.PreTabButtonClicked(buttonData, playerDriven)
+    local self = buttonData.craftBagExtendedModule
+    if buttonData.categoryName == self.tabName then
+        self.menu:SetHidden(false)
+    else
+        self.menu:SetHidden(true)
+    end
 end

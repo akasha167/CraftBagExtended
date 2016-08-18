@@ -53,6 +53,17 @@ function class.TransferQueue:SetQuantity(transferItem, quantity)
     return item
 end
 
+function class.TransferQueue:AddItem(item)
+    local key = self:GetKey(item.itemId, item.quantity, self.targetBag)
+    if not self.items[key] then
+        self.items[key] = {}
+    end
+    table.insert(self.items[key], item)
+    self.itemCount = self.itemCount + 1
+    util.Debug(self.name..": enqueue succeeded for "..item.itemLink.." id "..tostring(item.itemId).." bag "..tostring(self.sourceBag).." slot "..tostring(slotIndex).." qty "..tostring(item.quantity))
+    return item
+end
+
 function class.TransferQueue:Dequeue(bag, slotIndex, quantity)
 
     if quantity == nil then
@@ -66,7 +77,6 @@ function class.TransferQueue:Dequeue(bag, slotIndex, quantity)
     end
     
     if self.trade then
-        local _
         bag, slotIndex = GetTradeItemBagAndSlot(bag, slotIndex)
     end
     
@@ -74,49 +84,41 @@ function class.TransferQueue:Dequeue(bag, slotIndex, quantity)
     local itemId
     _, _, _, itemId = ZO_LinkHandler_ParseLink( itemLink )
     
-    if not quantity and bag ~= BAG_VIRTUAL then
+    if (not quantity or quantity == 0) and bag ~= BAG_VIRTUAL then
         local stackSize, maxStackSize = GetSlotStackSize(bag, slotIndex)
         quantity = math.min(stackSize, maxStackSize)
     end
     
-    local key = self:GetKey(itemId, quantity, bag)
-    if not self.items[key] then
-        util.Debug(self.name..": dequeue failed for "..itemLink.." id "..tostring(itemId).." bag "..tostring(bag).." slot "..tostring(slotIndex).." qty "..tostring(quantity))
-        return nil
-    end
-    
-    util.Debug(self.name..": dequeue succeeded for "..itemLink.." id "..tostring(itemId).." bag "..tostring(bag).." slot "..tostring(slotIndex).." qty "..tostring(quantity))
-    self.itemCount = self.itemCount - 1
-    local item = table.remove(self.items[key])
-    if #self.items[key] == 0 then
-        self.items[key] = nil
-    end
-    return item
+    local key = self:GetKey(itemId, quantity, self.targetBag)
+    return self:RemoveKey(key)
 end
 
 function class.TransferQueue:Enqueue(slotIndex, quantity, callback)
     
     local item = class.TransferItem:New(self, slotIndex, quantity, callback)
-    
-    local key = self:GetKey(item.itemId, item.quantity, self.targetBag)
-    if not self.items[key] then
-        self.items[key] = {}
-    end
-    
-    table.insert(self.items[key], item)
-    self.itemCount = self.itemCount + 1
-    
-    if not self.name then
-        d("self.name is nil")
-    elseif not item.itemLink then
-        d("item.itemLink is nil")
-    end
-    util.Debug(self.name..": enqueue succeeded for "..item.itemLink.." id "..tostring(item.itemId).." bag "..tostring(self.sourceBag).." slot "..tostring(slotIndex).." qty "..tostring(item.quantity))
+    self:AddItem(item)
     return item
 end
 
 function class.TransferQueue:HasItems()
     return self.itemCount > 0
+end
+
+function class.TransferQueue:RemoveKey(key)
+    if not self.items[key] then
+        util.Debug(self.name..": dequeue failed for key "..tostring(key))
+        return nil
+    end
+    
+    self.itemCount = self.itemCount - 1
+    local item = table.remove(self.items[key])
+    
+    util.Debug(self.name..": dequeue succeeded for "..item.itemLink.." id "..tostring(item.itemId).." bag "..tostring(item.bag).." slot "..tostring(item.slotIndex).." qty "..tostring(item.quantity))
+    
+    if #self.items[key] == 0 then
+        self.items[key] = nil
+    end
+    return item
 end
 
 --[[ Registers a new transfer item and callback for slot updates for the 

@@ -46,8 +46,8 @@ end
 function class.Trade:Setup()
     cbe.tradeSlotRemovalQueue = {}
     self.menu:SetAnchor(BOTTOMRIGHT, ZO_TradeMyControls, TOPRIGHT, 0, -12)
-    util.RemapKeybind(TRADE.keybindStripDescriptor, 
-        "UI_SHORTCUT_SECONDARY", "UI_SHORTCUT_TERTIARY") 
+    --[[util.RemapKeybind(TRADE.keybindStripDescriptor, 
+        "UI_SHORTCUT_SECONDARY", "UI_SHORTCUT_TERTIARY") ]]
     -- Listen for bag slot update events so that we can process the callbacks
     EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_TRADE_ITEM_ADDED, OnTradeItemAdded)
     EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_TRADE_ITEM_REMOVED, OnTradeItemRemoved)
@@ -120,7 +120,7 @@ function class.Trade:AddSlotActions(slotInfo)
         table.insert(slotInfo.slotActions, {
             SI_CBE_CRAFTBAG_TRADE_ADD, 
             function() cbe:TradeAddToOfferDialog(slotInfo.slotIndex) end, 
-            "keybind1"
+            "keybind3"
         })
     end
 end

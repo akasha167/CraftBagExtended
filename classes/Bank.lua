@@ -9,9 +9,7 @@ function class.Bank:New(...)
     local instance = class.Module.New(self, 
         name, "bank", 
         ZO_SharedRightPanelBackground, BACKPACK_GUILD_BANK_LAYOUT_FRAGMENT,
-        ZO_PlayerBankMenuBar, SI_BANK_DEPOSIT,
-        PLAYER_INVENTORY.bankDepositTabKeybindButtonGroup,
-        "UI_SHORTCUT_SECONDARY")
+        ZO_PlayerBankMenuBar, SI_BANK_DEPOSIT)
     instance:Setup()
     return instance
 end
@@ -123,7 +121,7 @@ function class.Bank:AddSlotActions(slotInfo)
         table.insert(slotInfo.slotActions, {
             SI_CBE_CRAFTBAG_BANK_DEPOSIT,  
             function() cbe:BankDepositDialog(slotInfo.slotIndex) end,
-            "keybind1"
+            "keybind3"
         })
     end
 end

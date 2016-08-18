@@ -12,6 +12,7 @@ CraftBagExtended = {
     classes    = {},
     constants  = {
         QUANTITY_UNSPECIFIED = -1,
+        KEYBIND_QUANTITY     = "UI_SHORTCUT_QUICK_SLOTS",
         BAG_TYPES = Set {
             BAG_BACKPACK,
             BAG_BANK,
@@ -113,7 +114,7 @@ end
      If quantity is nil, then the max stack is moved. If a callback function 
      is specified, it will be called when the mats arrive in the backpack. ]]
 function CraftBagExtended:Retrieve(slotIndex, quantity, callback)
-    return self.modules.inventory:Retrieve(slotIndex, quantity, callback)
+    return self.utility.Retrieve(slotIndex, quantity, callback)
 end
 
 --[[ Opens the "Retrieve" from craft bag dialog with a custom action name for
@@ -132,7 +133,7 @@ end
      If quantity is nil, then the whole stack is moved. If a callback function 
      is specified, it will be called when the mats arrive in the craft bag. ]]
 function CraftBagExtended:Stow(slotIndex, quantity, callback)
-    return self.modules.inventory:Stow(slotIndex, quantity, callback)
+    return self.utility.Stow(slotIndex, quantity, callback)
 end
 
 --[[ Opens the "Stow" to craft bag dialog with a custom action name for
@@ -176,6 +177,38 @@ function CraftBagExtended:TradeRemoveFromOffer(slotIndex, removedCallback, stowe
     return self.modules.trade:RemoveFromOffer(slotIndex, removedCallback, stowedCallback)
 end
 
+--[[ If Awesome Guild Store is not running, retrieves a given quantity of mats 
+     from a given craft bag slot index, and then automatically adds them to a 
+     new pending guild store sale posting and displays the backpack tab with the
+     moved stack. If quantity is nil, then the max stack is deposited.
+     If the backpack doesn't have at least one slot available,
+     an alert is raised and no mats leave the craft bag.
+     An optional callback can be raised both when the mats arrive in the backpack
+     and/or after they are added to the pending listing. ]]
+function CraftBagExtended:TradingHouseAddToListing(slotIndex, quantity, backpackCallback, addedCallback)
+    return self.modules.tradingHouse:AddToListing(slotIndex, quantity, backpackCallback, addedCallback)
+end
+
+--[[ If Awesome Guild Store is not running, opens a retrieve dialog for a given 
+     craft bag slot index, and then automatically adds the selected quantity to 
+     a new pending guild store sale posting and displays the backpack tab with
+     the moved stack. If the backpack doesn't have at least one slot available, 
+     an alert is raised and no dialog is shown.
+     An optional callback can be raised both when the mats arrive in the backpack
+     and/or after they are added to the pending listing. ]]
+function CraftBagExtended:TradingHouseAddToListingDialog(slotIndex, backpackCallback, addedCallback)
+    return self.modules.tradingHouse:AddToListingDialog(slotIndex, backpackCallback, addedCallback)
+end
+
+--[[ If Awesome Guild Store is not running, removes the currently-pending stack 
+     of mats from the guild store sales listing and then automatically stows 
+     them in the craft bag and displays the craft bag tab.
+     An optional callback can be raised both when the mats are removed from the 
+     listing and/or when they arrive in the craft bag. ]]
+function CraftBagExtended:TradingHouseRemoveFromListing(slotIndex, removedCallback, craftbagCallback)
+    return self.modules.tradingHouse:RemoveFromListing(slotIndex, removedCallback, craftbagCallback)
+end
+
 --[[ 
        END PUBLIC API 
   ]]
@@ -190,11 +223,12 @@ local function OnAddonLoaded(event, name)
     self.settings  = class.Settings:New()
     
     self.modules = {
-        bank      = class.Bank:New(),
-        guildBank = class.GuildBank:New(),
-        inventory = class.Inventory:New(),
-        mail      = class.Mail:New(),
-        trade     = class.Trade:New(),
+        bank         = class.Bank:New(),
+        guildBank    = class.GuildBank:New(),
+        inventory    = class.Inventory:New(),
+        mail         = class.Mail:New(),
+        trade        = class.Trade:New(),
+        tradingHouse = class.TradingHouse:New(),
     }
     
     self:InitializeHooks()

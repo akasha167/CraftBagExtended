@@ -5,6 +5,7 @@ class.Mail  = class.Module:Subclass()
 
 local name = cbe.name .. "Mail"
 local debug = false
+local mailAttachedTransferItems = {}
 
 function class.Mail:New(...)
     local instance = class.Module.New(self, 
@@ -13,10 +14,60 @@ function class.Mail:New(...)
     return instance
 end
 
+local function OnMailAttachmentAdded(eventCode, attachmentSlotIndex)
+
+    -- Dequeue the waiting transfer item
+    local bag, slotIndex, _, quantity = 
+        GetQueuedItemAttachmentInfo(attachmentSlotIndex)
+    local transferQueue = util.GetTransferQueue(BAG_VIRTUAL, BAG_BACKPACK)
+    local transferItem = transferQueue:Dequeue(bag, slotIndex, quantity)
+    
+    -- Remember the item, so that we can know the slot index when removed
+    mailAttachedTransferItems[attachmentSlotIndex] = transferItem
+    
+    -- Raise any pending callbacks
+    if transferItem then
+        transferItem:ExecuteCallback(slotIndex)
+    end
+end
+
+local function OnMailAttachmentRemoved(eventCode, attachmentSlotIndex)
+    
+    -- Clear the keybind strip command
+    ZO_InventorySlot_OnMouseExit(MAIL_SEND.attachmentSlots[attachmentSlotIndex])
+    
+    -- Callback that the detachment succeeded
+    local removed = mailAttachedTransferItems[attachmentSlotIndex]
+    if removed then
+    
+        -- Look up the slot index from the previous attached transfer item 
+        -- and then forget it
+        local slotIndex = removed.targetSlotIndex
+        mailAttachedTransferItems[attachmentSlotIndex] = nil
+        
+        -- Get the new transfer queue and queued item details
+        local transferQueue = util.GetTransferQueue(BAG_BACKPACK, BAG_VIRTUAL)
+        local transferItem = transferQueue:Dequeue(BAG_BACKPACK, slotIndex, removed.quantity)
+        
+        -- Run any callbacks
+        transferItem:ExecuteCallback(slotIndex)
+        
+        -- Transfer mats back to craft bag
+        cbe:Stow(slotIndex, transferItem.quantity, transferItem.callback)
+    end
+end
+
 function class.Mail:Setup()
     self.menu:SetAnchor(TOPRIGHT, ZO_MailSend, TOPLEFT, ZO_MailSendTo:GetWidth(), 22)
-    util.RemapKeybind(MAIL_SEND.staticKeybindStripDescriptor, 
-        "UI_SHORTCUT_SECONDARY", "UI_SHORTCUT_TERTIARY")
+    
+    -- Listen for mail attachment updates so that callbacks can be raised and
+    -- mats can be returned to the craft bag.
+    EVENT_MANAGER:RegisterForEvent(cbe.name, 
+        EVENT_MAIL_ATTACHMENT_ADDED,
+        OnMailAttachmentAdded)
+    EVENT_MANAGER:RegisterForEvent(cbe.name, 
+        EVENT_MAIL_ATTACHMENT_REMOVED,
+        OnMailAttachmentRemoved)
 end
 
 --[[ Returns true if the mail send interface is currently open. Otherwise returns false. ]]
@@ -66,10 +117,6 @@ local function RetrieveCallback(transferItem)
 
     if not IsSendingMail() then return end
     
-    if not transferItem then
-        util.Debug(name..":RetrieveCallback did not receive its transferItem parameter", debug)
-    end
-    
     local errorStringId = nil
     
     -- Find the first empty attachment slot
@@ -82,6 +129,7 @@ local function RetrieveCallback(transferItem)
     -- Empty attachment slot found.
     else
         -- Attempt the attachment
+        transferItem:Requeue()
         local result = QueueItemAttachment(transferItem.targetBag, transferItem.targetSlotIndex, emptyAttachmentSlotIndex)
 
         -- Assign error messages to different results
@@ -102,12 +150,12 @@ local function RetrieveCallback(transferItem)
     -- back to the craft bag.
     if errorStringId then
         ZO_Alert(UI_ALERT_CATEGORY_ERROR, SOUNDS.NEGATIVE_CLICK, GetString(errorStringId))
+        -- undo the enqueue
+        transferItem:Dequeue()
+        -- send the mats back to the craft bag
         cbe:Stow(transferItem.targetSlotIndex)
         return
     end
-    
-    -- Perform any configured callbacks after attachments are added
-    transferItem:ExecuteCallback(transferItem.targetSlotIndex, emptyAttachmentSlotIndex)
 end
 
 local function ValidateCanAttach()
@@ -127,19 +175,21 @@ function class.Mail:AddSlotActions(slotInfo)
     
     if not IsSendingMail() then return end
     
+    local slotIndex = slotInfo.slotIndex
+    
     -- For attachment slots, check the actual entry slot for the fromCraftBag flag
     if slotInfo.slotType == SLOT_TYPE_MAIL_QUEUED_ATTACHMENT then
         local inventoryType = PLAYER_INVENTORY.bagToInventoryType[slotInfo.bag]
-        local slot = PLAYER_INVENTORY.inventories[inventoryType].slots[slotInfo.slotIndex]
+        local slot = PLAYER_INVENTORY.inventories[inventoryType].slots[slotIndex]
         slotInfo.fromCraftBag = slot.fromCraftBag
     end
     
-    if IsAttached(slotInfo.bag, slotInfo.slotIndex) then
+    if IsAttached(slotInfo.bag, slotIndex) then
         if slotInfo.fromCraftBag then
             --[[ Remove from Mail ]]
             table.insert(slotInfo.slotActions, {
                 SI_ITEM_ACTION_MAIL_DETACH, 
-                function() cbe:MailDetach(slotInfo.slotIndex) end, 
+                function() cbe:MailDetach(slotIndex) end, 
                 "primary"
             })
         end
@@ -148,14 +198,14 @@ function class.Mail:AddSlotActions(slotInfo)
         --[[ Add to Mail ]]
         table.insert(slotInfo.slotActions, {
             SI_ITEM_ACTION_MAIL_ATTACH, 
-            function() cbe:MailAttach(slotInfo.slotIndex) end, 
+            function() cbe:MailAttach(slotIndex) end, 
             "primary"
         })
         --[[ Add Quantity ]]
         table.insert(slotInfo.slotActions, {
             SI_CBE_CRAFTBAG_MAIL_ATTACH, 
-            function() cbe:MailAttachDialog(slotInfo.slotIndex) end, 
-            "keybind1"
+            function() cbe:MailAttachDialog(slotIndex) end, 
+            "keybind3"
         })
     end
 end
@@ -197,20 +247,13 @@ function class.Mail:Detach(slotIndex, detachedCallback, stowedCallback)
         return false
     end
     
+    if not detachedCallback then detachedCallback = 1 end
+    local callback = { detachedCallback, stowedCallback }
+    local transferQueue = util.GetTransferQueue(BAG_BACKPACK, BAG_VIRTUAL)
+    transferQueue:Enqueue(slotIndex, nil, callback)
     RemoveQueuedItemAttachment(attachmentSlotIndex)
     
-    -- Clear the keybind strip command
-    ZO_InventorySlot_OnMouseExit(MAIL_SEND.attachmentSlots[attachmentSlotIndex])
-    
-    -- Callback that the detachment succeeded
-    if type(detachedCallback) == "function" then
-        local stowQueue = util.GetTransferQueue(BAG_BACKPACK, BAG_VIRTUAL)
-        local transferItem = class.TransferItem:New(stowQueue, slotIndex)
-        detachedCallback(transferItem, attachmentSlotIndex)
-    end
-    
-    -- Transfer mats back to craft bag
-    return cbe:Stow(slotIndex, nil, stowedCallback)
+    return true
 end
 
 function class.Mail:FilterSlot(inventoryManager, inventory, slot)

@@ -9,9 +9,7 @@ function class.GuildBank:New(...)
     local instance = class.Module.New(self, 
         name, "guildBank", 
         ZO_SharedRightPanelBackground, BACKPACK_GUILD_BANK_LAYOUT_FRAGMENT,
-        ZO_GuildBankMenuBar, SI_BANK_DEPOSIT,
-        PLAYER_INVENTORY.guildBankDepositTabKeybindButtonGroup,
-        "UI_SHORTCUT_SECONDARY")
+        ZO_GuildBankMenuBar, SI_BANK_DEPOSIT)
     instance:Setup()
     return instance
 end
@@ -93,10 +91,9 @@ end
 local function RetrieveCallback(transferItem)
     
     -- If multiple callbacks were specified, then listen for guild bank slot 
-    -- updates and raise the next callback
+    -- updates that will raise the next callback
     if type(transferItem.callback) == "table" then
-        local depositQueue = util.GetTransferQueue( BAG_BACKPACK, BAG_GUILDBANK )
-        depositQueue:Enqueue(transferItem.targetSlotIndex, transferItem.quantity, transferItem.callback)
+        transferItem:Requeue(BAG_GUILDBANK)
     end
     
     util.Debug("Transferring "..tostring(transferItem.targetBag)
@@ -174,7 +171,7 @@ function class.GuildBank:AddSlotActions(slotInfo)
     table.insert(slotInfo.slotActions, {
         SI_CBE_CRAFTBAG_BANK_DEPOSIT,  
         function() cbe:GuildBankDepositDialog(slotIndex) end,
-        "keybind1"
+        "keybind3"
     })
 end
 

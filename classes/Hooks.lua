@@ -64,12 +64,28 @@ local function OnModuleSceneStateChange(oldState, newState)
     end
 end
 
---[[ Suppress existing slot actions that would conflict with ours. ]]
+--[[ Runs whenever a new inventory slot action is added. Used to ammend the
+     available keybinds, as well as supporess existing slot actions names that 
+     would conflict with ours. ]]
 local function PreAddSlotAction(slotActions, actionStringId, actionCallback, actionType, visibilityFunction, options)
-    if cbe.addingSlotActions or not cbe.currentSlotActions then return end
-    for _, moduleSlotAction in ipairs(cbe.currentSlotActions) do
-        if moduleSlotAction[1] == actionStringId then
-            return true
+   
+    -- Add a keybind3 handler for the Q key
+    if cbe.addingSlotActions then
+        
+        if actionType == "keybind3" then
+            local actionName = GetString(actionStringId)
+            slotActions.m_keybindActions[3] = { 
+                actionName, actionCallback, "keybind", 
+                visibilityFunction, options 
+            }
+        end
+    
+    -- Suppress existing slot actions that would conflict with ours.
+    elseif cbe.customSlotActionDescriptors then
+        for _, moduleSlotAction in ipairs(cbe.customSlotActionDescriptors) do
+            if moduleSlotAction[1] == actionStringId then
+                return true
+            end
         end
     end
 end
@@ -85,10 +101,10 @@ local function PreAlert(category, soundId, message, ...)
 end
 
 local function PreInventorySlotActionsGetAction(slotActions)
-    if not cbe.currentSlotActions then return end
+    if not cbe.customSlotActionDescriptors then return end
     if slotActions.craftBagExtendedPostHooked then return end
     cbe.addingSlotActions = true
-    for _, moduleSlotAction in ipairs(cbe.currentSlotActions) do
+    for _, moduleSlotAction in ipairs(cbe.customSlotActionDescriptors) do
         if moduleSlotAction[3] == "secondary" then
             slotActions:AddSlotAction(unpack(moduleSlotAction))
         end
@@ -137,7 +153,7 @@ local function PreDiscoverSlotActions(inventorySlot, slotActions)
             ZO_PreHook(slotActions, "Show", PreInventorySlotActionsGetAction)
             slotActions.craftBagExtendedHooked = true
         end
-        cbe.currentSlotActions = {}
+        cbe.customSlotActionDescriptors = {}
         local slotInfo = { 
             inventorySlot = inventorySlot,
             slotType      = slotType, 
@@ -145,7 +161,7 @@ local function PreDiscoverSlotActions(inventorySlot, slotActions)
             slotIndex     = slotIndex,
             slotData      = slotData,
             fromCraftBag  = fromCraftBag, 
-            slotActions   = cbe.currentSlotActions,
+            slotActions   = cbe.customSlotActionDescriptors,
         }
         for moduleName,module in pairs(cbe.modules) do
             if type(module.AddSlotActions) == "function" then
@@ -153,12 +169,15 @@ local function PreDiscoverSlotActions(inventorySlot, slotActions)
             end
         end
         cbe.addingSlotActions = true
-        for _, moduleSlotAction in ipairs(cbe.currentSlotActions) do
+        for _, moduleSlotAction in ipairs(cbe.customSlotActionDescriptors) do
             if moduleSlotAction[3] ~= "secondary" then
                 slotActions:AddSlotAction(unpack(moduleSlotAction))
             end
         end
         cbe.addingSlotActions = nil
+        cbe.slotActions = slotActions
+    else
+        cbe.customSlotActionDescriptors = nil
     end
 end
 
@@ -189,6 +208,42 @@ local function PreIsItemBound(bagId, slotIndex)
             return true
         end
     end
+end
+
+--[[ Add quantity keybind option for the custom "keybind3" action type ]]
+local quantityKeybind = {
+    name     = function()
+                   return cbe.slotActions and cbe.slotActions:GetKeybindActionName(3)
+               end,
+    keybind  = cbe.constants.KEYBIND_QUANTITY,
+    callback = function()
+                   if cbe.slotActions then 
+                       cbe.slotActions:DoKeybindAction(3)
+                   end
+               end,
+    visible  = function()
+                   return cbe.slotActions and cbe.slotActions:CheckKeybindActionVisibility(3)
+               end,
+    hasBind  = function()
+                   return cbe.slotActions and cbe.slotActions:GetKeybindActionName(3) ~= nil
+               end,
+}
+local function PreItemSlotActionsControllerAddSubCommand(slotActionsController, command, hasBind, activateCallback)
+
+    -- Hook into when the tertiary keybind slot is created. 
+    -- This should only be on keyboard mode.
+    if command.keybind ~= "UI_SHORTCUT_TERTIARY" then return end
+    
+    -- Create the tertiary keybind as usual
+    slotActionsController[#slotActionsController + 1] = 
+        { command, hasBind = hasBind, activateCallback = activateCallback }
+    
+    -- Create a quickslot keybind whenever the tertiary keybind is created
+    quantityKeybind.alignment = command.alignment
+    slotActionsController:AddSubCommand(quantityKeybind, quantityKeybind.hasBind)
+    
+    -- Do not execute the tertiary keybind add, since it's already been added
+    return true
 end
     
 local function PreTransferDialogCanceled(dialog)
@@ -223,6 +278,7 @@ function CraftBagExtended:InitializeHooks()
     ZO_PreHook(ZO_InventorySlotActions, "AddSlotAction", PreAddSlotAction)
     
     ZO_PreHook("ZO_InventorySlot_DiscoverSlotActionsFromActionList", PreDiscoverSlotActions)
+    ZO_PreHook(ZO_ItemSlotActionsController, "AddSubCommand", PreItemSlotActionsControllerAddSubCommand)
     
     util.PreHookReturn("IsItemBound", PreIsItemBound)
     

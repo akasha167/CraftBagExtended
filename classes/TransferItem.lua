@@ -57,14 +57,13 @@ function class.TransferItem:ExecuteCallback(targetSlotIndex, ...)
         self.callback = nil
     end
     
-    -- Raise the callback.  It should never be nil or a nonfunction, 
-    -- but check just in case
+    -- Raise the callback, if it's a function. Otherwise, ignore.
     if type(callback) == "function" then
-        util.Debug("calling callback on bag "..tostring(self.targetBag).." slot "..tostring(targetSlotIndex), self.debug)
+        util.Debug("calling callback on bag "..tostring(self.targetBag).." slot "..tostring(targetSlotIndex), debug)
         self.targetSlotIndex = targetSlotIndex
         callback(self, ...)
     else
-        util.Debug("callback on bag "..tostring(self.targetBag).." slot "..tostring(targetSlotIndex).." was not a function. it was a "..type(callback), self.debug)
+        util.Debug("callback on bag "..tostring(self.targetBag).." slot "..tostring(targetSlotIndex).." was not a function. it was a "..type(callback), debug)
     end
 end
 
@@ -72,4 +71,28 @@ end
 function class.TransferItem:HasCallback()
     return (type(self.callback) == "table" and self.callback[1])
            or type(self.callback) == "function"
+end
+
+--[[ Undoes a previous enqueue operation for this item ]]
+function class.TransferItem:Dequeue()
+    local key = self:GetKey(self.itemId, self.quantity, self.bag)
+    self:RemoveKey(key)
+end
+
+--[[ Queues the same transfer item up again to be handled by another server 
+     event. If targetBag is supplied, then the item is queued for transfer to 
+     the new bag.  Otherwise, the item is added to its original queue. ]]
+function class.TransferItem:Requeue(targetBag)
+    -- If queuing a transfer to a new bag, get the new transfer queue and queue
+    -- up a new transfer item.
+    if targetBag and targetBag ~= self.targetBag then
+        local transferQueue = util.GetTransferQueue(self.targetBag, targetBag)
+        transferQueue:Enqueue(self.targetSlotIndex, self.quantity, self.callback)
+        
+    -- If queuing a non-transfer for temporary data storage between events, just
+    -- add this item back to the queue.
+    else
+        self.queue:AddItem(self)
+    end
+    
 end
