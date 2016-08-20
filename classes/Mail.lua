@@ -43,17 +43,22 @@ local function OnMailAttachmentRemoved(eventCode, attachmentSlotIndex)
         -- Look up the slot index from the previous attached transfer item 
         -- and then forget it
         local slotIndex = removed.targetSlotIndex
+        local quantity = removed.quantity
         mailAttachedTransferItems[attachmentSlotIndex] = nil
         
         -- Get the new transfer queue and queued item details
         local transferQueue = util.GetTransferQueue(BAG_BACKPACK, BAG_VIRTUAL)
-        local transferItem = transferQueue:Dequeue(BAG_BACKPACK, slotIndex, removed.quantity)
+        local transferItem = transferQueue:Dequeue(BAG_BACKPACK, slotIndex, quantity)
         
-        -- Run any callbacks
-        transferItem:ExecuteCallback(slotIndex)
-        
+        -- Run any callbacks. Note, transferItem will be nil during a Clear operation
+        local callback
+        if transferItem then
+            transferItem:ExecuteCallback(slotIndex)
+            callback = transferItem.callback
+        end
+            
         -- Transfer mats back to craft bag
-        cbe:Stow(slotIndex, transferItem.quantity, transferItem.callback)
+        cbe:Stow(slotIndex, quantity, callback)
     end
 end
 
