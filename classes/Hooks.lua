@@ -101,8 +101,13 @@ local function PreAlert(category, soundId, message, ...)
 end
 
 local function PreInventorySlotActionsGetAction(slotActions)
-    if not cbe.customSlotActionDescriptors then return end
-    if slotActions.craftBagExtendedPostHooked then return end
+    if not cbe.customSlotActionDescriptors 
+       or not slotActions 
+       or not slotActions.m_inventorySlot 
+       or slotActions.craftBagExtendedPostHooked
+    then 
+        return 
+    end
     cbe.addingSlotActions = true
     for _, moduleSlotAction in ipairs(cbe.customSlotActionDescriptors) do
         if moduleSlotAction[3] == "secondary" then
