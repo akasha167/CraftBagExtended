@@ -18,7 +18,6 @@ local function IsShown(self)
 end
 
 local function SwapFragments(self, removeFragment, addFragment, layoutFragment)
-    local scene = SCENE_MANAGER.scenes[self.sceneName]
     if self.fragmentGroup then
         SCENE_MANAGER:RemoveFragmentGroup(self.fragmentGroup)
         for i=1,#self.fragmentGroup do
@@ -28,10 +27,9 @@ local function SwapFragments(self, removeFragment, addFragment, layoutFragment)
         end
         SCENE_MANAGER:AddFragmentGroup(self.fragmentGroup)
     else
-        scene:RemoveFragment(removeFragment)
-        scene:RemoveFragment(layoutFragment)
-        scene:AddFragment(addFragment)
-        scene:AddFragment(layoutFragment)
+        SCENE_MANAGER:RemoveFragment(removeFragment)
+        SCENE_MANAGER:AddFragment(addFragment)
+        PLAYER_INVENTORY:ApplyBackpackLayout(layoutFragment.layoutData)
     end
 end
 
@@ -53,8 +51,9 @@ function class.Module:Initialize(name, sceneName, window, layoutFragment, tabMen
 
     self.name = name or cbe.name .. "Module"
     self.sceneName = sceneName
+    self.scene = SCENE_MANAGER.scenes[sceneName]
     
-    if not window then return end
+    if not window or not self.scene then return end
     
     self.window = window
     self.layoutFragment = layoutFragment
@@ -76,7 +75,7 @@ function class.Module:Initialize(name, sceneName, window, layoutFragment, tabMen
     self.menu:SetHidden(true)
     
     --[[ Handle scene open close events ]]
-    SCENE_MANAGER.scenes[self.sceneName]:RegisterCallback("StateChange", 
+    self.scene:RegisterCallback("StateChange", 
         function (oldState, newState)
             if newState == SCENE_HIDING then
                 self.menu:SetHidden(true)
@@ -85,8 +84,7 @@ function class.Module:Initialize(name, sceneName, window, layoutFragment, tabMen
                              and self.tabMenuBar.m_object.m_clickedButton.m_buttonData.categoryName ~= self.tabName
                 self.menu:SetHidden(hide)
                 if hide and not self.fragmentGroup then
-                    local scene = SCENE_MANAGER.scenes[self.sceneName]
-                    scene:RemoveFragment(CRAFT_BAG_FRAGMENT)
+                    SCENE_MANAGER:RemoveFragment(CRAFT_BAG_FRAGMENT)
                 end
             end
         end)
@@ -115,8 +113,7 @@ function class.Module:Initialize(name, sceneName, window, layoutFragment, tabMen
 end
 
 function class.Module:IsSceneShown()
-    local scene = SCENE_MANAGER.scenes[self.sceneName]
-    return scene.state == SCENE_SHOWN
+    return self.scene and self.scene.state == SCENE_SHOWN
 end
 
 function class.Module.PreTabButtonClicked(buttonData, playerDriven)
@@ -125,5 +122,6 @@ function class.Module.PreTabButtonClicked(buttonData, playerDriven)
         self.menu:SetHidden(false)
     else
         self.menu:SetHidden(true)
+        SCENE_MANAGER:RemoveFragment(CRAFT_BAG_FRAGMENT)
     end
 end
