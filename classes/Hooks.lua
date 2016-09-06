@@ -277,6 +277,11 @@ end
 
 function CraftBagExtended:InitializeHooks()
 
+    -- Fix for craft bag tabs not adjusting correctly to backpack layout
+    local _, _, _, _, tabsOffsetX = ZO_CraftBagTabs:GetAnchor(0)
+    ZO_CraftBagTabs:ClearAnchors()
+    ZO_CraftBagTabs:SetAnchor(BOTTOMRIGHT, ZO_CraftBagFilterDivider, TOPRIGHT, tabsOffsetX, -14, 0)
+    
     ZO_PreHook("ZO_Alert", PreAlert)
     
     -- Disallow duplicates with same names

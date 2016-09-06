@@ -29,7 +29,9 @@ local function SwapFragments(self, removeFragment, addFragment, layoutFragment)
     else
         SCENE_MANAGER:RemoveFragment(removeFragment)
         SCENE_MANAGER:AddFragment(addFragment)
-        PLAYER_INVENTORY:ApplyBackpackLayout(layoutFragment.layoutData)
+        if layoutFragment then
+            PLAYER_INVENTORY:ApplyBackpackLayout(layoutFragment.layoutData)
+        end
     end
 end
 
