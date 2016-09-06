@@ -9,11 +9,32 @@ function class.Module:New(...)
     return instance
 end
 
+local function AddFragment(self, fragment)
+    if not fragment then return end
+    if self.isFragmentTemporary then
+        SCENE_MANAGER:AddFragment(fragment)
+    else
+        self.scene:AddFragment(fragment)
+    end
+end
+
 local function IsShown(self)
     if self.tabMenuBar and self.tabName then
         return self.tabMenuBar.m_object.m_clickedButton.m_buttonData.categoryName == self.tabName
     else
         return self:IsSceneShown()
+    end
+end
+
+local function RemoveFragment(self, fragment)
+    if not fragment then return end
+    if self.isFragmentTemporary == nil then
+        self.isFragmentTemporary = self.scene.temporaryFragments and self.scene.temporaryFragments[fragment]
+    end
+    if self.isFragmentTemporary then
+        SCENE_MANAGER:RemoveFragment(fragment)
+    else
+        self.scene:RemoveFragment(fragment)
     end
 end
 
@@ -27,11 +48,10 @@ local function SwapFragments(self, removeFragment, addFragment, layoutFragment)
         end
         SCENE_MANAGER:AddFragmentGroup(self.fragmentGroup)
     else
-        SCENE_MANAGER:RemoveFragment(removeFragment)
-        SCENE_MANAGER:AddFragment(addFragment)
-        if layoutFragment then
-            PLAYER_INVENTORY:ApplyBackpackLayout(layoutFragment.layoutData)
-        end
+        RemoveFragment(self, layoutFragment)
+        RemoveFragment(self, removeFragment)
+        AddFragment(self, addFragment)
+        AddFragment(self, layoutFragment)
     end
 end
 
