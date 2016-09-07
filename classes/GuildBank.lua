@@ -41,10 +41,13 @@ local function OnGuildBankTransferFailed(eventCode, reason)
 
     if not depositQueue:HasItems() then return end
     
-    for i,transferItem in ipairs(depositQueue.items) do
-        
-        util.Debug("Moving "..transferItem.itemLink.." back to craft bag due to bank transfer error "..tostring(reason), debug)
-        cbe:Stow(transferItem.slotIndex)
+    local items = depositQueue.items
+    depositQueue:Clear()
+    for key, transferItems in pairs(items) do
+        for i, transferItem in ipairs(transferItems) do
+            util.Debug("Moving "..transferItem.itemLink.." back to craft bag due to bank transfer error "..tostring(reason), debug)
+            cbe:Stow(transferItem.slotIndex, nil, function(transferItem) d(transferItem.itemLink.." returned to craft bag") end)
+        end
     end
 end
 
