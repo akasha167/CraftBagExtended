@@ -1,6 +1,21 @@
 local cbe  = CraftBagExtended
 local util = cbe.utility
 
+local function GetTransferItemScope(transferDialog)
+    local scope
+    if SCENE_MANAGER.currentScene then
+        scope = SCENE_MANAGER.currentScene.name
+    else
+        scope = "default"
+    end
+    if transferDialog.targetBag == BAG_VIRTUAL then
+        scope = scope .. "Stow"
+    else
+        scope = scope .. "Retrieve"
+    end
+    return scope
+end
+
  --[[ Handle craft bag open/close events ]]
 local function OnCraftBagFragmentStateChange(oldState, newState)
     -- On craft bag exit, stop listening for any transfers
@@ -253,6 +268,7 @@ end
     
 local function PreTransferDialogCanceled(dialog)
     -- If canceled, remove the transfer item from the queue
+    cbe.transferDialogCanceled = true
     local transferItem = cbe.transferDialogItem
     if not transferItem then return end
     transferItem.queue:Dequeue(transferItem.slotIndex, cbe.constants.QUANTITY_UNSPECIFIED)
@@ -260,18 +276,38 @@ local function PreTransferDialogCanceled(dialog)
 end
 
 local function PreTransferDialogFinished(dialog)
-    local transferDialogInfo = dialog.info
+    if cbe.transferDialogCanceled then d("transfer canceled. not setting default") return end
+    
     -- Record the quantity entered from the dialog
     local transferItem = cbe.transferDialogItem
+    cbe.transferDialogItem = nil
+    local quantity
+    if IsInGamepadPreferredMode() then
+        quantity = ZO_GamepadDialogItemSliderItemSliderSlider:GetValue()
+    else
+        local transferDialog = SYSTEMS:GetKeyboardObject("ItemTransferDialog")
+        quantity = transferDialog:GetSpinnerValue()
+        
+        -- Save or clear default quantity
+        local scope = GetTransferItemScope(transferDialog)
+        local default = ZO_CheckButton_IsChecked(transferDialog.checkboxControl) and quantity or nil
+        local _, itemId = util.GetItemLinkAndId(transferDialog.bag, transferDialog.slotIndex)
+        cbe.settings:SetDialogDefault(scope, itemId, default)
+    end
     if transferItem then
-        cbe.transferDialogItem = nil
-        local quantity
-        if IsInGamepadPreferredMode() then
-            quantity = ZO_GamepadDialogItemSliderItemSliderSlider:GetValue()
-        else
-            quantity = tonumber(ZO_ItemTransferDialogSpinnerDisplay:GetText())
-        end
         transferItem.queue:SetQuantity(transferItem, quantity)
+    end
+end
+
+local function PreTransferDialogRefresh(transferDialog)
+
+    local self = transferDialog
+    local scope = GetTransferItemScope(transferDialog)
+    local _, itemId = util.GetItemLinkAndId(transferDialog.bag, transferDialog.slotIndex)
+    local default = cbe.settings:GetDialogDefault(scope, itemId)
+    ZO_CheckButton_SetCheckState(transferDialog.checkboxControl, default ~= nil)
+    if type(default) == "number" then
+        self.spinner:SetValue(default, true)
     end
 end
 
@@ -298,18 +334,30 @@ function CraftBagExtended:InitializeHooks()
     EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_INVENTORY_SINGLE_SLOT_UPDATE, OnInventorySingleSlotUpdate)
     
     -- Get transfer dialog configuration object
-    local transferDialogInfo = util.GetRetrieveDialogInfo()
+    local transferDialogKeys = { 
+        "ITEM_TRANSFER_REMOVE_FROM_CRAFT_BAG_GAMEPAD", 
+        "ITEM_TRANSFER_REMOVE_FROM_CRAFT_BAG_KEYBOARD", 
+        "ITEM_TRANSFER_ADD_TO_CRAFT_BAG_GAMEPAD", 
+        "ITEM_TRANSFER_ADD_TO_CRAFT_BAG_KEYBOARD" 
+    }
+    for i, transferDialogKey in ipairs(transferDialogKeys) do
     
-    --[[ Dequeue the transfer if the transfer dialog is canceled via button click. ]]
-    local transferCancelButton = transferDialogInfo.buttons[2]
-    util.PreHookCallback(transferCancelButton, "callback", PreTransferDialogCanceled)
+        local transferDialogInfo = ESO_Dialogs[transferDialogKey]
+        
+        --[[ Dequeue the transfer if the transfer dialog is canceled via button click. ]]
+        local transferCancelButton = transferDialogInfo.buttons[2]
+        util.PreHookCallback(transferCancelButton, "callback", PreTransferDialogCanceled)
+        
+        --[[ Dequeue the transfer if the transfer dialog is canceled with no 
+             selection (i.e. ESC keypress) ]]
+        util.PreHookCallback(transferDialogInfo, "noChoiceCallback", PreTransferDialogCanceled)
+        
+        --[[ Whenever the transfer dialog is finished, set the quantity in the queue ]]
+        util.PreHookCallback(transferDialogInfo, "finishedCallback", PreTransferDialogFinished)
+    end
     
-    --[[ Dequeue the transfer if the transfer dialog is canceled with no 
-         selection (i.e. ESC keypress) ]]
-    util.PreHookCallback(transferDialogInfo, "noChoiceCallback", PreTransferDialogCanceled)
-    
-    --[[ Whenever the transfer dialog is finished, set the quantity in the queue ]]
-    util.PreHookCallback(transferDialogInfo, "finishedCallback", PreTransferDialogFinished)
+    --[[ Load any default values for the transfer dialog ]]
+    ZO_PreHook(SYSTEMS:GetKeyboardObject("ItemTransferDialog"), "Refresh", PreTransferDialogRefresh)
     
     --[[ Handle craft bag open/close events ]]
     CRAFT_BAG_FRAGMENT:RegisterCallback("StateChange",  OnCraftBagFragmentStateChange)

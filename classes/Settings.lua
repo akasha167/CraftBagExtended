@@ -43,3 +43,35 @@ function class.Settings:Initialize()
     }
     LAM2:RegisterOptionControls(cbe.name .. "MenuPanel", optionsTable)
 end
+
+--[[ Retrieves a saved item transfer dialog default quantity for a particular scope. ]]
+function class.Settings:GetDialogDefault(scope, itemId)
+    local default
+    if self.db.dialogDefaults 
+       and self.db.dialogDefaults[scope] 
+    then
+        default = self.db.dialogDefaults[scope][itemId]
+    end
+    return default
+end
+
+--[[ Saves an item transfer dialog default quantity for a particular scope. ]]
+function class.Settings:SetDialogDefault(scope, itemId, default)
+    -- Save default in saved var
+    if type(default) == "number" then
+        if not self.db.dialogDefaults then
+            self.db.dialogDefaults = {}
+        end
+        if not self.db.dialogDefaults[scope] then
+            self.db.dialogDefaults[scope] = {}
+        end
+        self.db.dialogDefaults[scope][itemId] = default
+        
+    -- Clear nil defaults, if set
+    elseif self.db.dialogDefaults 
+       and self.db.dialogDefaults[scope] 
+       and self.db.dialogDefaults[scope][itemId]
+    then
+        self.db.dialogDefaults[scope][itemId] = nil
+    end
+end

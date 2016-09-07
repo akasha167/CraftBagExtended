@@ -14,9 +14,7 @@ end
 
 function class.TransferItem:Initialize(queue, slotIndex, quantity, callback)
 
-    local itemLink = GetItemLink(queue.sourceBag, slotIndex)
-    local itemId
-    _, _, _, itemId = ZO_LinkHandler_ParseLink( itemLink )
+    local itemLink, itemId = util.GetItemLinkAndId(queue.sourceBag, slotIndex)
     if not quantity then
         local stackSize, maxStackSize = GetSlotStackSize(queue.sourceBag, slotIndex)
         quantity = math.min(stackSize, maxStackSize)

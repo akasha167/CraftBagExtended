@@ -93,6 +93,14 @@ function util.GetInventorySlot(bag, slotIndex)
     end
 end
 
+--[[ Gets an item link and item id for the given slot index ]]
+function util.GetItemLinkAndId(bag, slotIndex)
+    local itemLink = GetItemLink(bag, slotIndex)
+    local itemId
+    _, _, _, itemId = ZO_LinkHandler_ParseLink( itemLink )
+    return itemLink, itemId
+end
+
 --[[ Gets the config table for the "Retrieve" from craft bag dialog. ]]
 function util.GetRetrieveDialogInfo()
     local transferDialogInfoIndex
@@ -294,6 +302,20 @@ function util.TransferDialog(bag, slotIndex, targetBag, dialogTitle, buttonText,
         return false
     end
     
+    -- Get the transfer dialog
+    local transferDialog = SYSTEMS:GetObject("ItemTransferDialog")
+    
+    -- Create default checkbox for keyboard mode
+    if transferDialog.dialogControl and not transferDialog.checkboxControl then
+        local checkbox = WINDOW_MANAGER:CreateControlFromVirtual(
+            transferDialog.dialogControl:GetName()..cbe.name.."CheckButton", 
+            transferDialog.dialogControl, 
+            "ZO_CheckButton")
+        checkbox:SetAnchor(LEFT, transferDialog.spinner.control, RIGHT, 32, 0)
+        ZO_CheckButton_SetLabelText(checkbox, GetString(SI_AUDIOSPEAKERCONFIGURATIONS0)) -- "Default"
+        transferDialog.checkboxControl = checkbox
+    end
+    
     -- Wire up callback
     if type(callback) == "function" or type(callback) == "table" then
         local transferQueue = util.GetTransferQueue( bag, targetBag )
@@ -322,7 +344,7 @@ function util.TransferDialog(bag, slotIndex, targetBag, dialogTitle, buttonText,
     end
     
     -- Open the transfer dialog
-    local transferDialog = SYSTEMS:GetObject("ItemTransferDialog")
+    cbe.transferDialogCanceled = false
     transferDialog:StartTransfer(bag, slotIndex, targetBag)
     
     return true
