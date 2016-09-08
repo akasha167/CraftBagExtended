@@ -67,10 +67,15 @@ local function OnTradingHousePendingItemUpdate(eventCode, slotIndex, isPending)
         local transferItem = transferQueue:Dequeue(BAG_BACKPACK, slotIndex, 0)
         
         -- Run any callbacks
-        transferItem:ExecuteCallback(slotIndex)
+        local quantity, callback
+        if transferItem then
+            transferItem:ExecuteCallback(slotIndex)
+            quantity = transferItem.quantity
+            callback = transferItem.callback
+        end
         
         -- Transfer mats back to craft bag
-        cbe:Stow(slotIndex, transferItem.quantity, transferItem.callback)
+        cbe:Stow(slotIndex, quantity, callback)
     end
 end
 
