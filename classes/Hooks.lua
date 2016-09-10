@@ -276,7 +276,7 @@ local function PreTransferDialogCanceled(dialog)
 end
 
 local function PreTransferDialogFinished(dialog)
-    if cbe.transferDialogCanceled then d("transfer canceled. not setting default") return end
+    if cbe.transferDialogCanceled then return end
     
     -- Record the quantity entered from the dialog
     local transferItem = cbe.transferDialogItem
