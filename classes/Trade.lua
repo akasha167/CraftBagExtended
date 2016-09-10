@@ -13,10 +13,27 @@ function class.Trade:New(...)
     return instance
 end
 
+local function OnTradeCanceled(eventCode)
+    for tradeIndex = 1, TRADE_NUM_SLOTS do
+        local slotIndex = cbe.tradeSlotMap[tradeIndex]
+        if slotIndex then
+            cbe.tradeSlotMap[tradeIndex] = nil
+            -- Transfer mats back to craft bag
+            cbe:Stow(slotIndex)
+        end
+    end
+end
+
 local function OnTradeItemAdded(eventCode, who, tradeIndex, itemSoundCategory)
     if who ~= TRADE_ME then return end
     
     local _, slotIndex = GetTradeItemBagAndSlot(TRADE_ME, tradeIndex)
+    if cbe.isAddingToTrade then 
+        cbe.tradeSlotMap[tradeIndex] = slotIndex
+        cbe.isAddingToTrade = nil
+    else
+        return 
+    end
     local retrieveQueue = util.GetTransferQueue( BAG_VIRTUAL, BAG_BACKPACK )
     local transferItem = retrieveQueue:Dequeue(BAG_BACKPACK, slotIndex)
     
@@ -28,34 +45,45 @@ end
 local function OnTradeItemRemoved(eventCode, who, tradeIndex, itemSoundCategory)
     if who ~= TRADE_ME then return end
     local transferItem = cbe.tradeSlotRemovalQueue[tradeIndex]
-    if not transferItem then return end
+    local slotIndex = cbe.tradeSlotMap[tradeIndex]
+    local callback
+    if transferItem then
+        callback = transferItem.callback
+    elseif not slotIndex then
+        return
+    end
+    
     cbe.tradeSlotRemovalQueue[tradeIndex] = nil
+    cbe.tradeSlotMap[tradeIndex] = nil
 
     -- Clear the keybind strip command
-    local inventorySlot = util.GetInventorySlot(BAG_BACKPACK, transferItem.slotIndex)
+    local inventorySlot = util.GetInventorySlot(BAG_BACKPACK, slotIndex)
     if inventorySlot then
         ZO_InventorySlot_OnMouseExit(inventorySlot)
     end
     
-    transferItem:ExecuteCallback(tradeIndex, tradeIndex)
+    if transferItem then
+        transferItem:ExecuteCallback(tradeIndex, tradeIndex)
+    end
     
     -- Transfer mats back to craft bag
-    cbe:Stow(transferItem.slotIndex, nil, transferItem.callback)
+    cbe:Stow(slotIndex, nil, callback)
 end
 
 function class.Trade:Setup()
     cbe.tradeSlotRemovalQueue = {}
+    cbe.tradeSlotMap = {}
     self.menu:SetAnchor(BOTTOMRIGHT, ZO_TradeMyControls, TOPRIGHT, 0, -12)
-    --[[util.RemapKeybind(TRADE.keybindStripDescriptor, 
-        "UI_SHORTCUT_SECONDARY", "UI_SHORTCUT_TERTIARY") ]]
     -- Listen for bag slot update events so that we can process the callbacks
+    EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_TRADE_CANCELED, OnTradeCanceled)
+    EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_TRADE_FAILED, OnTradeCanceled)
     EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_TRADE_ITEM_ADDED, OnTradeItemAdded)
     EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_TRADE_ITEM_REMOVED, OnTradeItemRemoved)
 end
 
 --[[ Returns the index of the trade item slot that's bound to a given backpack slot, 
      or nil if it's not in the current trade offer. ]]
-local function GetTradeSlotIndex(slotIndex)     
+local function GetTradeSlotIndex(slotIndex)
     for i = 1, TRADE_NUM_SLOTS do
         local _, tradeItemSlotIndex = GetTradeItemBagAndSlot(TRADE_ME, i)
         if tradeItemSlotIndex and slotIndex == tradeItemSlotIndex then
@@ -71,6 +99,7 @@ local function RetrieveCallback(transferItem)
     if not TRADE_WINDOW:IsTrading() then return end
     
     -- Add the stack to my trade items list
+    cbe.isAddingToTrade = true
     TRADE_WINDOW:AddItemToTrade(BAG_BACKPACK, transferItem.targetSlotIndex)
     
     -- If we're still waiting for the item to be added to the trade offer, then
