@@ -25,6 +25,7 @@ function class.Settings:Initialize()
         displayName = cbe.title,
         author = cbe.author,
         version = cbe.version,
+        website = "http://www.esoui.com/downloads/info1419-CraftBagExtended.htm",
         slashCommand = "/craftbag",
         -- registerForRefresh = true,
         registerForDefaults = true,
