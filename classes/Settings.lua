@@ -45,34 +45,34 @@ function class.Settings:Initialize()
     LAM2:RegisterOptionControls(cbe.name .. "MenuPanel", optionsTable)
 end
 
---[[ Retrieves a saved item transfer dialog default quantity for a particular scope. ]]
-function class.Settings:GetDialogDefault(scope, itemId)
+--[[ Retrieves a saved item transfer default quantity for a particular scope. ]]
+function class.Settings:GetTransferDefault(scope, itemId)
     local default
-    if self.db.dialogDefaults 
-       and self.db.dialogDefaults[scope] 
+    if self.db.transferDefaults 
+       and self.db.transferDefaults[scope] 
     then
-        default = self.db.dialogDefaults[scope][itemId]
+        default = self.db.transferDefaults[scope][itemId]
     end
     return default
 end
 
---[[ Saves an item transfer dialog default quantity for a particular scope. ]]
-function class.Settings:SetDialogDefault(scope, itemId, default)
+--[[ Saves an item transfer default quantity for a particular scope. ]]
+function class.Settings:SetTransferDefault(scope, itemId, default)
     -- Save default in saved var
     if type(default) == "number" then
-        if not self.db.dialogDefaults then
-            self.db.dialogDefaults = {}
+        if not self.db.transferDefaults then
+            self.db.transferDefaults = {}
         end
-        if not self.db.dialogDefaults[scope] then
-            self.db.dialogDefaults[scope] = {}
+        if not self.db.transferDefaults[scope] then
+            self.db.transferDefaults[scope] = {}
         end
-        self.db.dialogDefaults[scope][itemId] = default
+        self.db.transferDefaults[scope][itemId] = default
         
     -- Clear nil defaults, if set
-    elseif self.db.dialogDefaults 
-       and self.db.dialogDefaults[scope] 
-       and self.db.dialogDefaults[scope][itemId]
+    elseif self.db.transferDefaults 
+       and self.db.transferDefaults[scope] 
+       and self.db.transferDefaults[scope][itemId]
     then
-        self.db.dialogDefaults[scope][itemId] = nil
+        self.db.transferDefaults[scope][itemId] = nil
     end
 end

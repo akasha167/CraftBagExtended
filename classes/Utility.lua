@@ -137,6 +137,21 @@ function util.GetTransferItem(bag, slotIndex, quantity)
     end
 end
 
+function util.GetTransferItemScope(targetBag)
+    local scope
+    if SCENE_MANAGER.currentScene then
+        scope = SCENE_MANAGER.currentScene.name
+    else
+        scope = "default"
+    end
+    if targetBag == BAG_VIRTUAL then
+        scope = scope .. "Stow"
+    else
+        scope = scope .. "Retrieve"
+    end
+    return scope
+end
+
 --[[ Returns a lazy-loaded, cached transfer queue given a source 
      and a destination bag id. ]]
 function util.GetTransferQueue(sourceBag, destinationBag)

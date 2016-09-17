@@ -87,6 +87,11 @@ function class.TransferQueue:Dequeue(bag, slotIndex, quantity)
     if (not quantity or quantity == 0) and bag ~= BAG_VIRTUAL then
         local stackSize, maxStackSize = GetSlotStackSize(bag, slotIndex)
         quantity = math.min(stackSize, maxStackSize)
+        local scope = util.GetTransferItemScope(bag)
+        local default = cbe.settings:GetTransferDefault(scope, itemId)
+        if default then
+            quantity = math.min(quantity, default)
+        end
     end
     
     local key = self:GetKey(itemId, quantity, self.targetBag)

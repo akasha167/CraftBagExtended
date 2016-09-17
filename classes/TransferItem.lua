@@ -18,6 +18,11 @@ function class.TransferItem:Initialize(queue, slotIndex, quantity, callback)
     if not quantity then
         local stackSize, maxStackSize = GetSlotStackSize(queue.sourceBag, slotIndex)
         quantity = math.min(stackSize, maxStackSize)
+        local scope = util.GetTransferItemScope(queue.targetBag)
+        local default = cbe.settings:GetTransferDefault(scope, itemId)
+        if default then
+            quantity = math.min(quantity, default)
+        end
     end
     
     self.queue = queue

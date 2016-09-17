@@ -1,21 +1,6 @@
 local cbe  = CraftBagExtended
 local util = cbe.utility
 
-local function GetTransferItemScope(transferDialog)
-    local scope
-    if SCENE_MANAGER.currentScene then
-        scope = SCENE_MANAGER.currentScene.name
-    else
-        scope = "default"
-    end
-    if transferDialog.targetBag == BAG_VIRTUAL then
-        scope = scope .. "Stow"
-    else
-        scope = scope .. "Retrieve"
-    end
-    return scope
-end
-
  --[[ Handle craft bag open/close events ]]
 local function OnCraftBagFragmentStateChange(oldState, newState)
     -- On craft bag exit, stop listening for any transfers
@@ -289,10 +274,10 @@ local function PreTransferDialogFinished(dialog)
         quantity = transferDialog:GetSpinnerValue()
         
         -- Save or clear default quantity
-        local scope = GetTransferItemScope(transferDialog)
+        local scope = util.GetTransferItemScope(transferDialog.targetBag)
         local default = ZO_CheckButton_IsChecked(transferDialog.checkboxControl) and quantity or nil
         local _, itemId = util.GetItemLinkAndId(transferDialog.bag, transferDialog.slotIndex)
-        cbe.settings:SetDialogDefault(scope, itemId, default)
+        cbe.settings:SetTransferDefault(scope, itemId, default)
     end
     if transferItem then
         transferItem.queue:SetQuantity(transferItem, quantity)
@@ -302,9 +287,9 @@ end
 local function PreTransferDialogRefresh(transferDialog)
 
     local self = transferDialog
-    local scope = GetTransferItemScope(transferDialog)
+    local scope = util.GetTransferItemScope(transferDialog.targetBag)
     local _, itemId = util.GetItemLinkAndId(transferDialog.bag, transferDialog.slotIndex)
-    local default = cbe.settings:GetDialogDefault(scope, itemId)
+    local default = cbe.settings:GetTransferDefault(scope, itemId)
     ZO_CheckButton_SetCheckState(transferDialog.checkboxControl, default ~= nil)
     if type(default) == "number" then
         self.spinner:SetValue(default, true)
