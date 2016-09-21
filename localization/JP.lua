@@ -7,5 +7,5 @@ local strings = {
 
 -- Overwrite English strings
 for stringId, value in pairs(strings) do
-    CBE_STRINGS[stringId] = value
+    CRAFTBAGEXTENDED_STRINGS[stringId] = value
 end
