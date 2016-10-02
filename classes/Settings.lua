@@ -12,7 +12,8 @@ function class.Settings:Initialize()
 
     self.name = cbe.name .. "Settings"
     self.defaults = {
-        guildBankAutoStashOff = false
+        guildBankAutoStashOff = false,
+        primaryActionsUseDefault = true,
     }
     self.db = ZO_SavedVars:NewAccountWide("CraftBagExtended_Data", 1, nil, self.defaults)
 
@@ -41,12 +42,23 @@ function class.Settings:Initialize()
             setFunc = function(value) self.db.guildBankAutoStashOff = value end,
             default = self.defaults.guildBankAutoStashOff,
         },
+        {
+            type = "checkbox",
+            name = GetString(SI_CBE_PRIMARY_ACTIONS_USE_DEFAULT),
+            tooltip = GetString(SI_CBE_PRIMARY_ACTIONS_USE_DEFAULT_TOOLTIP),
+            getFunc = function() return self.db.primaryActionsUseDefault end,
+            setFunc = function(value) self.db.primaryActionsUseDefault = value end,
+            default = self.defaults.primaryActionsUseDefault,
+        },
     }
     LAM2:RegisterOptionControls(cbe.name .. "MenuPanel", optionsTable)
 end
 
 --[[ Retrieves a saved item transfer default quantity for a particular scope. ]]
-function class.Settings:GetTransferDefault(scope, itemId)
+function class.Settings:GetTransferDefault(scope, itemId, isDialog)
+    if not self.db.primaryActionsUseDefault and not isDialog then
+        return
+    end
     local default
     if self.db.transferDefaults 
        and self.db.transferDefaults[scope] 

@@ -289,7 +289,7 @@ local function PreTransferDialogRefresh(transferDialog)
     local self = transferDialog
     local scope = util.GetTransferItemScope(transferDialog.targetBag)
     local _, itemId = util.GetItemLinkAndId(transferDialog.bag, transferDialog.slotIndex)
-    local default = cbe.settings:GetTransferDefault(scope, itemId)
+    local default = cbe.settings:GetTransferDefault(scope, itemId, true)
     ZO_CheckButton_SetCheckState(transferDialog.checkboxControl, default ~= nil)
     if type(default) == "number" then
         self.spinner:SetValue(default, true)
