@@ -78,8 +78,8 @@ end
 
 --[[ Undoes a previous enqueue operation for this item ]]
 function class.TransferItem:Dequeue()
-    local key = self:GetKey(self.itemId, self.quantity, self.bag)
-    self:RemoveKey(key)
+    local key = self.queue:GetKey(self.itemId, self.quantity, self.bag)
+    self.queue:RemoveKey(key)
 end
 
 --[[ Queues the same transfer item up again to be handled by another server 
