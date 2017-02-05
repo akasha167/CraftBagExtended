@@ -250,6 +250,14 @@ local function PreItemSlotActionsControllerAddSubCommand(slotActionsController, 
     -- Do not execute the tertiary keybind add, since it's already been added
     return true
 end
+
+local function PreSceneManagerAddFragmentGroup(sceneManager, fragmentGroup)
+    if cbe.currentModule and cbe.currentModule:IsSceneShown() and util.IsModuleFragmentGroup(fragmentGroup) then
+        cbe.fragmentGroup = fragmentGroup
+    else
+        cbe.fragmentGroup = nil
+    end
+end
     
 local function PreTransferDialogCanceled(dialog)
     -- If canceled, remove the transfer item from the queue
@@ -314,6 +322,7 @@ function CraftBagExtended:InitializeHooks()
     util.PreHookReturn("IsItemBound", PreIsItemBound)
     
     ZO_PreHook(PLAYER_INVENTORY, "ShouldAddSlotToList", PreInventoryShouldAddSlotToList)
+    ZO_PreHook(SCENE_MANAGER, "AddFragmentGroup", PreSceneManagerAddFragmentGroup)
     
     -- Listen for bag slot update events so that we can process the callback
     EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_INVENTORY_SINGLE_SLOT_UPDATE, OnInventorySingleSlotUpdate)

@@ -21,9 +21,9 @@ function class.TradingHouse:New(...)
 
     local instance = class.Module.New(self, 
         name, "tradinghouse", 
-        ZO_TradingHouse, BACKPACK_TRADING_HOUSE_LAYOUT_FRAGMENT,
-        ZO_TradingHouseMenuBar, SI_TRADING_HOUSE_MODE_SELL)
+        ZO_TradingHouse, BACKPACK_TRADING_HOUSE_LAYOUT_FRAGMENT, true)
     instance:Setup()
+    
     return instance
 end
 
@@ -79,6 +79,22 @@ local function OnTradingHousePendingItemUpdate(eventCode, slotIndex, isPending)
     end
 end
 
+local function OnSetCurrentMode(tradingHouseManager, mode)
+    local self = tradingHouseManager.craftBagExtendedModule
+    if not self then return end
+    if self.originalSetCurrentMode and type(self.originalSetCurrentMode) == "function" then
+        self.originalSetCurrentMode(tradingHouseManager, mode)
+    end
+    
+    if tradingHouseManager:IsInSellMode() then
+        self.menu:SetHidden(false)
+    else
+        self.menu:SetHidden(true)
+        if not self.fragmentGroup then
+            SCENE_MANAGER:RemoveFragment(CRAFT_BAG_FRAGMENT)
+        end
+    end
+end
 function class.TradingHouse:Setup()
     
     -- Anchor the craft bag tab switch menu just above and to the left of the
@@ -91,6 +107,11 @@ function class.TradingHouse:Setup()
     EVENT_MANAGER:RegisterForEvent(cbe.name, 
         EVENT_TRADING_HOUSE_PENDING_ITEM_UPDATE,
         OnTradingHousePendingItemUpdate)
+    
+    -- Listen for mode changes / tab changes to know when to show/hide our craft bag toggle menu
+    TRADING_HOUSE.craftBagExtendedModule = self
+    self.originalSetCurrentMode = TRADING_HOUSE.SetCurrentMode
+    TRADING_HOUSE.SetCurrentMode = OnSetCurrentMode
 end
 
 local function IsItemAlreadyBeingPosted(inventorySlot)

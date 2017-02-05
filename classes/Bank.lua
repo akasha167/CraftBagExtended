@@ -8,8 +8,7 @@ class.Bank  = class.Module:Subclass()
 function class.Bank:New(...)        
     local instance = class.Module.New(self, 
         name, "bank", 
-        ZO_SharedRightPanelBackground, BACKPACK_GUILD_BANK_LAYOUT_FRAGMENT,
-        ZO_PlayerBankMenuBar, SI_BANK_DEPOSIT)
+        ZO_SharedRightPanelBackground, BACKPACK_BANK_LAYOUT_FRAGMENT, true)
     instance:Setup()
     return instance
 end
@@ -34,6 +33,17 @@ function class.Bank:Setup()
     self.menu:SetAnchor(TOPLEFT, ZO_SharedRightPanelBackground, TOPLEFT, 55, 0)
     
     EVENT_MANAGER:RegisterForEvent(self.name, EVENT_GUILD_BANK_TRANSFER_ERROR, OnBankIsFull)
+    
+    self.RegisterTabCallbacks(self.scene, BANK_FRAGMENT)
+end
+
+local function OnBankFragmentStateChange(oldState, newState)
+    if newState == SCENE_FRAGMENT_SHOWN then
+        cbe.currentModule.menu:SetHidden(true)
+        if not cbe.fragmentGroup then
+            SCENE_MANAGER:RemoveFragment(CRAFT_BAG_FRAGMENT)
+        end
+    end
 end
 
 --[[ Called when the requested stack arrives in the backpack and is ready for
@@ -163,6 +173,18 @@ function class.Bank:FilterSlot(inventoryManager, inventory, slot)
     if IsItemStolen(slot.bag, slot.slotIndex) then 
         return true 
     end
+end
+
+function class.Bank.RegisterTabCallbacks(scene, bankFragment)
+    --[[ Handle scene open close events ]]
+    scene:RegisterCallback("StateChange", 
+        function (oldState, newState)
+            if newState == SCENE_SHOWING then
+                bankFragment:RegisterCallback("StateChange", OnBankFragmentStateChange)
+            elseif newState == SCENE_HIDING then
+                bankFragment:UnregisterCallback("StateChange", OnBankFragmentStateChange)
+            end
+        end)
 end
 
 --[[ Withdraws a given stack of mats from the player bank

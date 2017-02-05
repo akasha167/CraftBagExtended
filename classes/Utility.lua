@@ -168,6 +168,17 @@ function util.GetTransferQueue(sourceBag, destinationBag)
     return self.transferQueueCache[destinationBag][sourceBag]
 end
 
+function util.IsModuleFragmentGroup(fragmentGroup)
+    if not fragmentGroup then return end
+    for i = 1, #fragmentGroup do
+        if fragmentGroup[i] == INVENTORY_FRAGMENT then
+            return true
+        elseif fragmentGroup[i] == CRAFT_BAG_FRAGMENT then
+            return true
+        end
+    end
+end
+
 --[[ Determines if an inventory slot should be protected against storing in the
      guild bank, selling or mailing. ]]
 function util.IsSlotProtected(slot)

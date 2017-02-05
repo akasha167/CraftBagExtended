@@ -8,8 +8,7 @@ class.GuildBank = class.Module:Subclass()
 function class.GuildBank:New(...)        
     local instance = class.Module.New(self, 
         name, "guildBank", 
-        ZO_SharedRightPanelBackground, BACKPACK_GUILD_BANK_LAYOUT_FRAGMENT,
-        ZO_GuildBankMenuBar, SI_BANK_DEPOSIT)
+        ZO_SharedRightPanelBackground, BACKPACK_GUILD_BANK_LAYOUT_FRAGMENT, true)
     instance:Setup()
     return instance
 end
@@ -87,6 +86,8 @@ function class.GuildBank:Setup()
     
     -- Listen for deposit failures
     EVENT_MANAGER:RegisterForEvent(self.name, EVENT_GUILD_BANK_TRANSFER_ERROR, OnGuildBankTransferFailed)
+    
+    class.Bank.RegisterTabCallbacks(self.scene, GUILD_BANK_FRAGMENT)
 end
 
 --[[ Called when the requested stack arrives in the backpack and is ready for
