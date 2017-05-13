@@ -185,8 +185,12 @@ function class.Mail:AddSlotActions(slotInfo)
     -- For attachment slots, check the actual entry slot for the fromCraftBag flag
     if slotInfo.slotType == SLOT_TYPE_MAIL_QUEUED_ATTACHMENT then
         local inventoryType = PLAYER_INVENTORY.bagToInventoryType[slotInfo.bag]
-        local slot = PLAYER_INVENTORY.inventories[inventoryType].slots[slotIndex]
-        slotInfo.fromCraftBag = slot.fromCraftBag
+        local slots = PLAYER_INVENTORY.inventories[inventoryType].slots
+        if GetAPIVersion() >= 100019 then
+            slots = slots[slotInfo.bag]
+        end
+        local slot = slots[slotIndex]
+        slotInfo.fromCraftBag = slot and slot.fromCraftBag
     end
     
     if IsAttached(slotInfo.bag, slotIndex) then

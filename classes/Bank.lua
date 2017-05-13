@@ -19,7 +19,14 @@ local function OnBankIsFull(eventCode)
     
     local depositQueue = util.GetTransferQueue( BAG_BACKPACK, BAG_BANK )
 
-    if not depositQueue:HasItems() then return end
+    if not depositQueue:HasItems() then 
+        if BAG_SUBSCRIBER_BANK then
+            depositQueue = util.GetTransferQueue( BAG_BACKPACK, BAG_SUBSCRIBER_BANK )
+            if not depositQueue:HasItems() then return end
+        else
+            return
+        end
+    end
     
     for i,transferItem in ipairs(depositQueue.items) do
         
@@ -55,8 +62,14 @@ local function RetrieveCallback(transferItem)
                ..tostring(transferItem.quantity).." to bank", debug)
                
     -- Perform the deposit
+    local depositBagId
+    if GetNumBagFreeSlots(BAG_BANK) < 1 and BAG_SUBSCRIBER_BANK and GetBagUseableSize(BAG_SUBSCRIBER_BANK) > 0 then
+        depositBagId = BAG_SUBSCRIBER_BANK
+    else
+        depositBagId = BAG_BANK
+    end
     util.TransferItemToBag( transferItem.targetBag, transferItem.targetSlotIndex, 
-        BAG_BANK, quantity, transferItem.callback)
+        depositBagId, transferItem.quantity, transferItem.callback)
 end
 
 --[[ Called when a previously deposited craft bag stack is withdrawn from the 
@@ -78,8 +91,10 @@ end
 local function ValidateCanDeposit(bag, slotIndex)
     if bag ~= BAG_VIRTUAL then return false end
     
-    -- Don't transfer if you don't have enough free slots in the player bank
-    if GetNumBagFreeSlots(BAG_BANK) < 1 then
+    -- Don't transfer if you don't have enough free slots in the player or subscriber banks
+    if GetNumBagFreeSlots(BAG_BANK) < 1 
+       and (not BAG_SUBSCRIBER_BANK or GetBagUseableSize(BAG_SUBSCRIBER_BANK) < 1)
+    then
         ZO_Alert(UI_ALERT_CATEGORY_ERROR, SOUNDS.NEGATIVE_CLICK, SI_INVENTORY_ERROR_BANK_FULL)
         return false
     end
@@ -107,19 +122,7 @@ function class.Bank:AddSlotActions(slotInfo)
     -- Only add these actions when the player bank screen is open on the craft bag tab
     if not PLAYER_INVENTORY:IsBanking() then return end
     
-    if slotInfo.slotType == SLOT_TYPE_BANK_ITEM and slotInfo.fromCraftBag then
-    
-        --[[ Withdraw ]]--
-        -- Note: this overrides the stock withdraw action for items that came
-        -- from the craft bag via one of the Deposit slot actions below, 
-        -- ensuring that the mats return back to the craft bag.
-        table.insert(slotInfo.slotActions, {
-            SI_BANK_WITHDRAW,  
-            function() cbe:BankWithdraw(slotInfo.slotIndex) end,
-            "primary"
-        })
-    
-    elseif slotInfo.slotType == SLOT_TYPE_CRAFT_BAG_ITEM then
+    if slotInfo.slotType == SLOT_TYPE_CRAFT_BAG_ITEM then
     
         --[[ Deposit ]]--
         table.insert(slotInfo.slotActions, {
@@ -187,14 +190,27 @@ function class.Bank.RegisterTabCallbacks(scene, bankFragment)
         end)
 end
 
---[[ Withdraws a given stack of mats from the player bank
+--[[ Withdraws a given stack of mats from the player or subscriber bank
      and then automatically stows them in the craft bag.
+     If bagId is not specified, then BAG_BANK is assumed.
      If the backpack doesn't have at least one slot available, 
      an alert is raised and no mats are transferred.
      An optional callback can be raised both when the mats arrive in the backpack
      and/or when they arrive in the craft bag. ]]
-function class.Bank:Withdraw(slotIndex, backpackCallback, craftbagCallback)
+function class.Bank:Withdraw(bagId, slotIndex, backpackCallback, craftbagCallback)
+    if type(slotIndex) == "function" or slotIndex == nil then
+         craftbagCallback = backpackCallback
+         backpackCallback = slotIndex
+         slotIndex = bagId
+         bagId = BAG_BANK
+    end
+    if not bagId then
+        bagId = BAG_BANK
+    end
+    if bagId ~= BAG_BANK and bagId ~= BAG_SUBSCRIBER_BANK then
+        return
+    end
     local callback = { util.WrapFunctions(backpackCallback, WithdrawCallback) }
     table.insert(callback, craftbagCallback)
-    return util.TransferItemToBag(BAG_BANK, slotIndex, BAG_BACKPACK, nil, callback)
+    return util.TransferItemToBag(bagId, slotIndex, BAG_BACKPACK, nil, callback)
 end

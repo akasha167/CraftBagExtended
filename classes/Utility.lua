@@ -74,7 +74,7 @@ function util.GetBagName(bag)
         return GetString(SI_CHARACTER_EQUIP_TITLE)
     elseif bag == BAG_BACKPACK then
         return GetString(SI_GAMEPAD_INVENTORY_CATEGORY_HEADER)
-    elseif bag == BAG_BANK then 
+    elseif bag == BAG_BANK or (BAG_SUBSCRIBER_BANK and bag == BAG_SUBSCRIBER_BANK) then 
         return GetString(SI_GAMEPAD_BANK_CATEGORY_HEADER)
     elseif bag == BAG_GUILDBANK then 
         return string.gsub(GetString(SI_GAMEPAD_GUILD_BANK_CATEGORY_HEADER), " ", "")
@@ -282,7 +282,11 @@ function util.Stow(slotIndex, quantity, callback, module)
     
     -- Find any existing slots in the craft bag that have the given item already
     local targetSlotIndex = nil
-    for currentSlotIndex,slotData in ipairs(PLAYER_INVENTORY.inventories[INVENTORY_CRAFT_BAG].slots) do
+    local slots = PLAYER_INVENTORY.inventories[INVENTORY_CRAFT_BAG].slots
+    if GetAPIVersion() >= 100019 then
+        slots = slots[BAG_VIRTUAL]
+    end
+    for currentSlotIndex,slotData in ipairs(slots) do
         local craftBagLink = GetItemLink(BAG_VIRTUAL, currentSlotIndex)
         if craftBagLink == transferItem.itemLink then
             targetSlotIndex = currentSlotIndex

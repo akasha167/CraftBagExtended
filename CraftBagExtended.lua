@@ -6,7 +6,7 @@ CraftBagExtended = {
     name       = "CraftBagExtended",
     title      = GetString(SI_CBE),
     author     = "|c99CCEFsilvereyes|r",
-    version    = "2.1.2",
+    version    = "2.2.0",
     apiVersion = 1.0,
     debug      = false,
     classes    = {},
@@ -49,14 +49,15 @@ function CraftBagExtended:BankDepositDialog(slotIndex, callback)
     return self.modules.bank:DepositDialog(slotIndex, callback)
 end
 
---[[ Withdraws a given stack of mats from the player bank
+--[[ Withdraws a given stack of mats from the player or subscriber bank
      and then automatically stows them in the craft bag.
+     If bagId is not specified, then BAG_BANK is assumed.
      If the backpack doesn't have at least one slot available, 
      an alert is raised and no mats are transferred.
      An optional callback can be raised both when the mats arrive in the backpack
      and/or when they arrive in the craft bag. ]]
-function CraftBagExtended:BankWithdraw(slotIndex, backpackCallback, craftbagCallback)
-    return self.modules.bank:Withdraw(slotIndex, backpackCallback, craftbagCallback)
+function CraftBagExtended:BankWithdraw(bagId, slotIndex, backpackCallback, craftbagCallback)
+    return self.modules.bank:Withdraw(bagId, slotIndex, backpackCallback, craftbagCallback)
 end
 
 --[[ Retrieves a given quantity of mats from a given craft bag slot index, 

@@ -122,7 +122,11 @@ function class.Trade:AddSlotActions(slotInfo)
     --[[ For my trade slots, check the actual entry slot for the fromCraftBag flag]]
     if slotInfo.slotType == SLOT_TYPE_MY_TRADE then
         local inventoryType = PLAYER_INVENTORY.bagToInventoryType[slotInfo.bag]
-        local slot = PLAYER_INVENTORY.inventories[inventoryType].slots[slotInfo.slotIndex]
+        local slots = PLAYER_INVENTORY.inventories[inventoryType].slots
+        if GetAPIVersion() >= 100019 then
+            slots = slots[slotInfo.bag]
+        end
+        local slot = slots[slotInfo.slotIndex]
         slotInfo.fromCraftBag = slot.fromCraftBag
     end
     
