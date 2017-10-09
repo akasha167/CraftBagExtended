@@ -5,6 +5,8 @@ class.TransferItem = ZO_Object:Subclass()
 
 local name = cbe.name .. "TransferItem"
 local debug = false
+local LTO = LibStub("LibTimeout")
+local instanceId = 0
 
 function class.TransferItem:New(...)
     local instance = ZO_Object.New(self)
@@ -12,13 +14,18 @@ function class.TransferItem:New(...)
     return instance
 end
 
-function class.TransferItem:Initialize(queue, slotIndex, quantity, callback)
+local function GetNewInstanceId()
+    instanceId = instanceId + 1
+    return instanceId
+end
 
-    local itemLink, itemId = util.GetItemLinkAndId(queue.sourceBag, slotIndex)
+function class.TransferItem:Initialize(queue, slotIndex, quantity, callback)
+    local itemLink = GetItemLink(queue.sourceBag, slotIndex)
+    local itemId = GetItemId(queue.sourceBag, slotIndex)
     if not quantity then
         local stackSize, maxStackSize = GetSlotStackSize(queue.sourceBag, slotIndex)
         quantity = math.min(stackSize, maxStackSize)
-        local scope = util.GetTransferItemScope(queue.targetBag)
+        local scope = util.GetTransferItemScope(queue.sourceBag, queue.targetBag)
         local default = cbe.settings:GetTransferDefault(scope, itemId)
         if default then
             quantity = math.min(quantity, default)
@@ -33,10 +40,29 @@ function class.TransferItem:Initialize(queue, slotIndex, quantity, callback)
     self.quantity = quantity
     self.targetBag = queue.targetBag
     self.callback = callback
+    self.location = cbe.constants.LOCATION.SOURCE_BAG
+    self.instanceId = GetNewInstanceId()
+    self.name = name .. tostring(self.instanceId)
+    
     if cbe.noAutoReturn then
         self.noAutoReturn = cbe.noAutoReturn
         cbe.noAutoReturn = nil
     end
+end
+
+function class.TransferItem:CancelUnqueueTimeout()
+    if not self.unqueueTimeout then 
+        return
+    end
+    util.Debug(self.name..":CancelUnqueueTimeout()", debug)
+    local scopeName = name .. tostring(self.instanceId) .. "Unqueue"
+    LTO:CancelTimeout(scopeName)
+end
+
+--[[ Undoes a previous enqueue operation for this item ]]
+function class.TransferItem:Dequeue()
+    util.Debug(self.name..":Dequeue()", debug)
+    self.queue:DequeueItem(self)
 end
 
 --[[ Performs the next configured callback, and clears it so that it doesn't
@@ -49,10 +75,14 @@ function class.TransferItem:ExecuteCallback(targetSlotIndex, ...)
     -- If multiple callbacks are specified, pop the first one off
     local callback
     if type(self.callback) == "table"  then
-        if self.callback[1] then
-            callback = table.remove(self.callback, 1)
-        else
+        if #self.callback == 0 then
+            self.callback = nil
             callback = nil
+        else
+            callback = table.remove(self.callback, 1)
+            if #self.callback == 0 then
+                self.callback = nil
+            end
         end
     -- Only one callback. Clear it.
     else
@@ -62,11 +92,11 @@ function class.TransferItem:ExecuteCallback(targetSlotIndex, ...)
     
     -- Raise the callback, if it's a function. Otherwise, ignore.
     if type(callback) == "function" then
-        util.Debug("calling callback on bag "..tostring(self.targetBag).." slot "..tostring(targetSlotIndex), debug)
+        util.Debug(self.name..": calling callback on bag "..util.GetBagName(self.targetBag).." slot "..tostring(targetSlotIndex), debug)
         self.targetSlotIndex = targetSlotIndex
         callback(self, ...)
     else
-        util.Debug("callback on bag "..tostring(self.targetBag).." slot "..tostring(targetSlotIndex).." was not a function. it was a "..type(callback), debug)
+        util.Debug(self.name..": callback on bag "..util.GetBagName(self.targetBag).." slot "..tostring(targetSlotIndex).." was not a function. it was a "..type(callback), debug)
     end
 end
 
@@ -76,26 +106,49 @@ function class.TransferItem:HasCallback()
            or type(self.callback) == "function"
 end
 
---[[ Undoes a previous enqueue operation for this item ]]
-function class.TransferItem:Dequeue()
-    local key = self.queue:GetKey(self.itemId, self.quantity, self.bag)
-    self.queue:RemoveKey(key)
-end
-
 --[[ Queues the same transfer item up again to be handled by another server 
      event. If targetBag is supplied, then the item is queued for transfer to 
      the new bag.  Otherwise, the item is added to its original queue. ]]
 function class.TransferItem:Requeue(targetBag)
+    util.Debug(self.name..":Requeue("..util.GetBagName(targetBag)..")", debug)
     -- If queuing a transfer to a new bag, get the new transfer queue and queue
     -- up a new transfer item.
     if targetBag and targetBag ~= self.targetBag then
         local transferQueue = util.GetTransferQueue(self.targetBag, targetBag)
-        transferQueue:Enqueue(self.targetSlotIndex, self.quantity, self.callback)
+        return transferQueue:Enqueue(self.targetSlotIndex, self.quantity, self.callback)
         
     -- If queuing a non-transfer for temporary data storage between events, just
     -- add this item back to the queue.
     else
-        self.queue:AddItem(self)
+        if targetBag then
+            self.location = cbe.constants.LOCATION.IN_TRANSIT
+        end
+        return self.queue:AddItem(self)
     end
     
+end
+
+function class.TransferItem:StartUnqueueTimeout(timeoutMilliseconds)
+    util.Debug(self.name..":StartUnqueueTimeout("..tostring(timeoutMilliseconds)..")", debug)
+    self.unqueueTimeout = timeoutMilliseconds
+    local scopeName = name .. tostring(self.instanceId) .. "Unqueue"
+    LTO:StartTimeout( { name = scopeName }, timeoutMilliseconds, class.TransferItem.UnqueueSourceBag, self)
+end
+
+function class.TransferItem:UnqueueSourceBag()
+    if self.location == cbe.constants.LOCATION.SOURCE_BAG then
+        util.Debug(self.name..":UnqueueSourceBag()", debug)
+        -- Mark the location as in-transit so that any future removals from its source slot don't try to mark it as in transit.
+        self.location = cbe.constants.LOCATION.IN_TRANSIT
+        self.queue:DequeueItem(self)
+        return true
+    end 
+end
+
+function class.TransferItem:UpdateQuantity(quantity)
+    util.Debug(self.name..":UpdateQuantity("..tostring(quantity)..")", debug)
+    local oldKey = self.queue:GetKey(self.itemId, self.quantity)
+    local newKey = self.queue:GetKey(self.itemId, quantity)
+    self.queue:UpdateKey(self, oldKey, newKey)
+    self.quantity = quantity
 end

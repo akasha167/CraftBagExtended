@@ -55,8 +55,10 @@ local function OnCraftBagMenuButtonClicked(buttonData, playerDriven)-- Do nothin
     end
     if buttonData.descriptor == SI_INVENTORY_MODE_CRAFT_BAG then
         if CRAFT_BAG_FRAGMENT.state == SCENE_FRAGMENT_SHOWN then return end
+        util.Debug(self.name..": swapping craft bag fragment in and inventory fragment out")
         SwapFragments(self, INVENTORY_FRAGMENT, CRAFT_BAG_FRAGMENT, self.layoutFragment)
     elseif CRAFT_BAG_FRAGMENT.state == SCENE_FRAGMENT_SHOWN then
+        util.Debug(self.name..": swapping inventory fragment in and craft bag fragment out")
         SwapFragments(self, CRAFT_BAG_FRAGMENT, INVENTORY_FRAGMENT, self.layoutFragment)
     end
 end
@@ -68,10 +70,14 @@ local function OnCraftBagFragmentStateChange(oldState, newState)
     if not self then return end
     
     -- Show menu whenever the craft bag fragment is first shown
-    self.menu:SetHidden(false)
+    if self.menu:IsHidden() then
+        util.Debug(self.name..": showing menu 1")
+        self.menu:SetHidden(false)
+    end
 
     -- Select items button on the menu if not already selected
     if ZO_MenuBar_GetSelectedDescriptor(self.menu) ~= SI_INVENTORY_MODE_CRAFT_BAG then
+        util.Debug(self.name..": selecting craft bag button")
         ZO_MenuBar_SelectDescriptor(self.menu, SI_INVENTORY_MODE_CRAFT_BAG)
     end
 end
@@ -83,15 +89,20 @@ local function OnInventoryFragmentStateChange(oldState, newState)
     if not self then return end
     
     -- Show menu whenever the inventory fragment is first shown
-    self.menu:SetHidden(false)
-
+    if self.menu:IsHidden() then
+        util.Debug(self.name..": showing menu 2")
+        self.menu:SetHidden(false)
+    end
+    
     -- Select items button on the menu if not already selected
     if ZO_MenuBar_GetSelectedDescriptor(self.menu) ~= SI_INVENTORY_MODE_ITEMS then
+        util.Debug(self.name..": selecting items button")
         ZO_MenuBar_SelectDescriptor(self.menu, SI_INVENTORY_MODE_ITEMS)
     end
     
     -- If the craft bag fragment is showing, hide it
     if not cbe.fragmentGroup then
+        util.Debug(self.name..": removing craft bag fragment 1")
         SCENE_MANAGER:RemoveFragment(CRAFT_BAG_FRAGMENT)
     end
 end
@@ -128,12 +139,29 @@ function class.Module:Initialize(name, sceneName, window, layoutFragment, hideMe
                 CRAFT_BAG_FRAGMENT:UnregisterCallback("StateChange", OnCraftBagFragmentStateChange)
                 cbe.currentModule = nil
                 cbe.fragmentGroup = nil
+                util.Debug(self.name..": hiding menu")
                 self.menu:SetHidden(true)
+                
+                -- When closing the module scene, undo any in-process retrieve operations from
+                -- the craft bag so that they don't attempt to run their callbacks on a closed scene.
+                local retrieveQueue = util.transferQueueCache[BAG_BACKPACK] 
+                              and util.transferQueueCache[BAG_BACKPACK][BAG_VIRTUAL]
+                if retrieveQueue then
+                    retrieveQueue:ReturnToCraftBag()
+                end
+                
             elseif newState == SCENE_SHOWING then
                 INVENTORY_FRAGMENT:RegisterCallback("StateChange", OnInventoryFragmentStateChange)
                 CRAFT_BAG_FRAGMENT:RegisterCallback("StateChange", OnCraftBagFragmentStateChange)
                 cbe.currentModule = self
-                self.menu:SetHidden(hideMenuWhenSceneShown)
+                local hide
+                if type(hideMenuWhenSceneShown) == "function" then
+                    hide = hideMenuWhenSceneShown()
+                else
+                    hide = hideMenuWhenSceneShown
+                end
+                util.Debug(self.name..": setting menu hidden to "..tostring(hide))
+                self.menu:SetHidden(hide)
             end
         end)
 end
@@ -145,9 +173,11 @@ end
 function class.Module.PreTabButtonClicked(buttonData, playerDriven)
     local self = buttonData.craftBagExtendedModule
     if buttonData.categoryName == self.tabName then
+        util.Debug(self.name..": showing menu 3")
         self.menu:SetHidden(false)
     else
         self.menu:SetHidden(true)
+        util.Debug(self.name..": removing craft bag fragment 2")
         SCENE_MANAGER:RemoveFragment(CRAFT_BAG_FRAGMENT)
     end
 end

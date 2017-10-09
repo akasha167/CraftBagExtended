@@ -6,7 +6,7 @@ CraftBagExtended = {
     name       = "CraftBagExtended",
     title      = GetString(SI_CBE),
     author     = "|c99CCEFsilvereyes|r",
-    version    = "2.2.1",
+    version    = "2.3.0",
     apiVersion = 1.0,
     debug      = false,
     classes    = {},
@@ -17,15 +17,24 @@ CraftBagExtended = {
             BAG_BACKPACK,
             BAG_BANK,
             BAG_GUILDBANK,
+            BAG_SUBSCRIBER_BANK,
             BAG_VIRTUAL,
         },
-        SLOT_TYPES = Set { 
+        SLOT_TYPES = Set {
+            SLOT_TYPE_BANK_ITEM,
             SLOT_TYPE_CRAFT_BAG_ITEM,
             SLOT_TYPE_ITEM,
             SLOT_TYPE_MAIL_QUEUED_ATTACHMENT,
             SLOT_TYPE_MY_TRADE,
-        }
+        },
+        LOCATION = {
+            SOURCE_BAG = 1,
+            IN_TRANSIT = 2,
+            TARGET_BAG = 3,
+        },
+        UNQUEUE_TIMEOUT_MS = 1000,
     },
+    singletons = {},
 }
 
 --[[ 
@@ -49,15 +58,26 @@ function CraftBagExtended:BankDepositDialog(slotIndex, callback)
     return self.modules.bank:DepositDialog(slotIndex, callback)
 end
 
---[[ Withdraws a given stack of mats from the player or subscriber bank
+--[[ Withdraws a given quantity of mats from the player or subscriber bank
      and then automatically stows them in the craft bag.
      If bagId is not specified, then BAG_BANK is assumed.
      If the backpack doesn't have at least one slot available, 
      an alert is raised and no mats are transferred.
      An optional callback can be raised both when the mats arrive in the backpack
      and/or when they arrive in the craft bag. ]]
-function CraftBagExtended:BankWithdraw(bagId, slotIndex, backpackCallback, craftbagCallback)
-    return self.modules.bank:Withdraw(bagId, slotIndex, backpackCallback, craftbagCallback)
+function CraftBagExtended:BankWithdraw(bagId, slotIndex, quantity, backpackCallback, craftbagCallback)
+    return self.modules.bank:Withdraw(bagId, slotIndex, quantity, backpackCallback, craftbagCallback)
+end
+
+--[[ Opens a retrieve dialog for a given slot index in the player or subscriber bank, 
+     and then automatically withdraws and stows them in the craft bag.
+     If bagId is not specified, then BAG_BANK is assumed.
+     If the backpack doesn't have at least one slot available, 
+     an alert is raised and no mats are transferred.
+     An optional callback can be raised both when the mats arrive in the backpack
+     and/or when they arrive in the craft bag. ]]
+function CraftBagExtended:BankWithdrawDialog(bagId, slotIndex, backpackCallback, craftbagCallback)
+    return self.modules.bank:WithdrawDialog(bagId, slotIndex, backpackCallback, craftbagCallback)
 end
 
 --[[ Retrieves a given quantity of mats from a given craft bag slot index, 
@@ -210,6 +230,26 @@ function CraftBagExtended:TradingHouseRemoveFromListing(slotIndex, removedCallba
     return self.modules.tradingHouse:RemoveFromListing(slotIndex, removedCallback, craftbagCallback)
 end
 
+--[[ Moves a given quantity of a craft bag slot to the backpack and then sells it.
+     If quantity is nil, then the max stack is moved.
+     Optionally raises callbacks after the stack arrives in the backpack and/or
+     after it is sold.
+     Returns true if the backpack has slots available.
+     Otherwise, returns false. ]]
+function CraftBagExtended:VendorSell(slotIndex, quantity, backpackCallback)
+    return self.modules.vendor:Sell(slotIndex, quantity, backpackCallback)
+end
+
+--[[ Opens a retrieve dialog for a given craft bag slot index, 
+     and then automatically sells it to the vendor.
+     Optionally raises callbacks after the stack arrives in the backpack and/or
+     after it is sold.
+     Returns true if the backpack has slots available.
+     Otherwise, returns false. ]]
+function CraftBagExtended:VendorSellDialog(slotIndex, backpackCallback)
+    return self.modules.vendor:SellDialog(slotIndex, backpackCallback)
+end
+
 --[[ 
        END PUBLIC API 
   ]]
@@ -230,7 +270,10 @@ local function OnAddonLoaded(event, name)
         mail         = class.Mail:New(),
         trade        = class.Trade:New(),
         tradingHouse = class.TradingHouse:New(),
+        vendor       = class.Vendor:New(),
     }
+    
+    self.hasCraftBagAccess = HasCraftBagAccess()
     
     self:InitializeHooks()
     

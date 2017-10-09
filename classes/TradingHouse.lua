@@ -30,7 +30,7 @@ end
 --[[ Whenever a new item is added to the pending sale, check to see if it is 
      replacing an item transferred by CBE from the craft bag.  If it is, 
      return the existing item back to the craft bag. ]]
-local function OnTradingHousePendingItemUpdate(eventCode, slotIndex, isPending)
+local function OnPendingItemUpdate(eventCode, slotIndex, isPending)
 
     -- If a new pending item was just added
     if isPending then
@@ -63,14 +63,14 @@ local function OnTradingHousePendingItemUpdate(eventCode, slotIndex, isPending)
         cbe.pendingItemFromCraftBag = nil
         
         -- Get the new transfer queue and queued item details
-        local transferQueue = util.GetTransferQueue(BAG_BACKPACK, BAG_VIRTUAL)
-        local transferItem = transferQueue:Dequeue(BAG_BACKPACK, slotIndex, 0)
+        local transferQueue = util.GetTransferQueue(BAG_BACKPACK, BAG_VIRTUAL)        
+        local quantity = GetSlotStackSize(BAG_BACKPACK, slotIndex)
+        local transferItem = transferQueue:Dequeue(BAG_BACKPACK, slotIndex, quantity)
         
         -- Run any callbacks
-        local quantity, callback
+        local callback
         if transferItem then
             transferItem:ExecuteCallback(slotIndex)
-            quantity = transferItem.quantity
             callback = transferItem.callback
         end
         
@@ -95,6 +95,8 @@ local function OnSetCurrentMode(tradingHouseManager, mode)
         end
     end
 end
+
+
 function class.TradingHouse:Setup()
     
     -- Anchor the craft bag tab switch menu just above and to the left of the
@@ -104,9 +106,9 @@ function class.TradingHouse:Setup()
     
     -- Listen for pending slot updates so that we can return any crafting
     -- mats that were previously pending back to the craft bag.
-    EVENT_MANAGER:RegisterForEvent(cbe.name, 
-        EVENT_TRADING_HOUSE_PENDING_ITEM_UPDATE,
-        OnTradingHousePendingItemUpdate)
+    EVENT_MANAGER:RegisterForEvent(self.name, EVENT_TRADING_HOUSE_PENDING_ITEM_UPDATE, OnPendingItemUpdate)
+    
+    EVENT_MANAGER:RegisterForEvent(self.name, EVENT_TRADING_HOUSE_RESPONSE_RECEIVED, util.RefreshMouseOverSlot)
     
     -- Listen for mode changes / tab changes to know when to show/hide our craft bag toggle menu
     TRADING_HOUSE.craftBagExtendedModule = self
@@ -156,7 +158,7 @@ local function ValidateCanList(bag, slotIndex)
     if bag ~= BAG_VIRTUAL or AwesomeGuildStore then return false end
     
     -- Don't transfer if you don't have a free proxy slot in your backpack
-    if GetNumBagFreeSlots(BAG_BACKPACK) < 1 then
+    if util.GetSlotsAvailable(INVENTORY_BACKPACK) < 1 then
         ZO_AlertEvent(EVENT_INVENTORY_IS_FULL, 1, 0)
         return false
     end

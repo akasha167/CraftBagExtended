@@ -17,31 +17,45 @@ end
      transfer errors that get raised by stopping the transfer. ]]
 local function OnBankIsFull(eventCode)
     
+    util.Debug("Bank is full!", debug)
     local depositQueue = util.GetTransferQueue( BAG_BACKPACK, BAG_BANK )
-
-    if not depositQueue:HasItems() then 
-        if BAG_SUBSCRIBER_BANK then
-            depositQueue = util.GetTransferQueue( BAG_BACKPACK, BAG_SUBSCRIBER_BANK )
-            if not depositQueue:HasItems() then return end
-        else
-            return
-        end
+    local transferItem = depositQueue:UnqueueSourceBag()
+    if not transferItem then
+        depositQueue = util.GetTransferQueue( BAG_BACKPACK, BAG_SUBSCRIBER_BANK )
+        transferItem = depositQueue:UnqueueSourceBag()
     end
-    
-    for i,transferItem in ipairs(depositQueue.items) do
-        
-        util.Debug("Moving "..transferItem.itemLink.." back to craft bag due to bank full error", debug)
+    if transferItem then
+        util.Debug("Moving "..transferItem.itemLink.." from Inventory slot "..tostring(transferItem.slotIndex).." back to craft bag due to full bank error.", debug)
         cbe:Stow(transferItem.slotIndex)
     end
 end
-
 function class.Bank:Setup()
     
     self.menu:SetAnchor(TOPLEFT, ZO_SharedRightPanelBackground, TOPLEFT, 55, 0)
     
-    EVENT_MANAGER:RegisterForEvent(self.name, EVENT_GUILD_BANK_TRANSFER_ERROR, OnBankIsFull)
+    EVENT_MANAGER:RegisterForEvent(self.name, EVENT_BANK_IS_FULL, OnBankIsFull)
     
     self.RegisterTabCallbacks(self.scene, BANK_FRAGMENT)
+    
+    -- Move bank space purchase keybind to left to make space for withdraw quantity keybind on right
+    self.buyBankSpaceButtonGroup =  { alignment = KEYBIND_STRIP_ALIGN_LEFT }
+    local buttonGroup = PLAYER_INVENTORY.bankWithdrawTabKeybindButtonGroup
+    for i=1,#buttonGroup do
+        local button = buttonGroup[i]
+        if button.callback == DisplayBankUpgrade then
+            table.insert(self.buyBankSpaceButtonGroup, 1, button)
+            table.remove(buttonGroup, i)
+            break
+        end
+    end
+    BANK_FRAGMENT:RegisterCallback("StateChange", 
+        function (oldState, newState)
+            if newState == SCENE_FRAGMENT_SHOWN then
+                KEYBIND_STRIP:AddKeybindButtonGroup(self.buyBankSpaceButtonGroup)
+            elseif newState == SCENE_FRAGMENT_HIDDEN then
+                KEYBIND_STRIP:RemoveKeybindButtonGroup(self.buyBankSpaceButtonGroup)
+            end
+        end)
 end
 
 local function OnBankFragmentStateChange(oldState, newState)
@@ -62,14 +76,8 @@ local function RetrieveCallback(transferItem)
                ..tostring(transferItem.quantity).." to bank", debug)
                
     -- Perform the deposit
-    local depositBagId
-    if GetNumBagFreeSlots(BAG_BANK) < 1 and BAG_SUBSCRIBER_BANK and GetBagUseableSize(BAG_SUBSCRIBER_BANK) > 0 then
-        depositBagId = BAG_SUBSCRIBER_BANK
-    else
-        depositBagId = BAG_BANK
-    end
     util.TransferItemToBag( transferItem.targetBag, transferItem.targetSlotIndex, 
-        depositBagId, transferItem.quantity, transferItem.callback)
+        BAG_BANK, transferItem.quantity, transferItem.callback)
 end
 
 --[[ Called when a previously deposited craft bag stack is withdrawn from the 
@@ -92,15 +100,13 @@ local function ValidateCanDeposit(bag, slotIndex)
     if bag ~= BAG_VIRTUAL then return false end
     
     -- Don't transfer if you don't have enough free slots in the player or subscriber banks
-    if GetNumBagFreeSlots(BAG_BANK) < 1 
-       and (not BAG_SUBSCRIBER_BANK or GetBagUseableSize(BAG_SUBSCRIBER_BANK) < 1)
-    then
-        ZO_Alert(UI_ALERT_CATEGORY_ERROR, SOUNDS.NEGATIVE_CLICK, SI_INVENTORY_ERROR_BANK_FULL)
+    if util.GetSlotsAvailable(INVENTORY_BANK) < 1 then
+        ZO_AlertEvent(EVENT_BANK_IS_FULL, 1, 0)
         return false
     end
     
     -- Don't transfer if you don't have a free proxy slot in your backpack
-    if GetNumBagFreeSlots(BAG_BACKPACK) < 1 then
+    if util.GetSlotsAvailable(INVENTORY_BACKPACK) < 1 then
         ZO_AlertEvent(EVENT_INVENTORY_IS_FULL, 1, 0)
         return false
     end
@@ -122,11 +128,26 @@ function class.Bank:AddSlotActions(slotInfo)
     -- Only add these actions when the player bank screen is open on the craft bag tab
     if not PLAYER_INVENTORY:IsBanking() then return end
     
-    if slotInfo.slotType == SLOT_TYPE_CRAFT_BAG_ITEM then
+    if slotInfo.slotType == SLOT_TYPE_BANK_ITEM and CanItemBeVirtual(slotInfo.bag, slotInfo.slotIndex) then
+    
+        --[[ Withdraw ]]--
+        table.insert(slotInfo.slotActions, {
+            SI_ITEM_ACTION_BANK_WITHDRAW,  
+            function() cbe:BankWithdraw(slotInfo.bag, slotInfo.slotIndex) end,
+            "primary"
+        })
+        --[[ Withdraw Quantity ]]--
+        table.insert(slotInfo.slotActions, {
+            SI_CBE_CRAFTBAG_BANK_WITHDRAW,  
+            function() cbe:BankWithdrawDialog(slotInfo.bag, slotInfo.slotIndex) end,
+            "keybind3"
+        })
+    
+    elseif slotInfo.slotType == SLOT_TYPE_CRAFT_BAG_ITEM then
     
         --[[ Deposit ]]--
         table.insert(slotInfo.slotActions, {
-            SI_BANK_DEPOSIT,  
+            SI_ITEM_ACTION_BANK_DEPOSIT,  
             function() cbe:BankDeposit(slotInfo.slotIndex) end,
             "primary" 
         })
@@ -190,14 +211,44 @@ function class.Bank.RegisterTabCallbacks(scene, bankFragment)
         end)
 end
 
---[[ Withdraws a given stack of mats from the player or subscriber bank
+--[[ Withdraws a given quantity of mats from the player or subscriber bank
      and then automatically stows them in the craft bag.
      If bagId is not specified, then BAG_BANK is assumed.
      If the backpack doesn't have at least one slot available, 
      an alert is raised and no mats are transferred.
      An optional callback can be raised both when the mats arrive in the backpack
      and/or when they arrive in the craft bag. ]]
-function class.Bank:Withdraw(bagId, slotIndex, backpackCallback, craftbagCallback)
+function class.Bank:Withdraw(bagId, slotIndex, quantity, backpackCallback, craftbagCallback)
+    if type(slotIndex) == "function" or slotIndex == nil then
+         craftbagCallback = backpackCallback
+         backpackCallback = quantity
+         quantity = slotIndex
+         slotIndex = bagId
+         bagId = BAG_BANK
+    end
+    if not bagId then
+        bagId = BAG_BANK
+    end
+    if bagId ~= BAG_BANK and bagId ~= BAG_SUBSCRIBER_BANK then
+        return
+    end
+    if not CanItemBeVirtual(bagId, slotIndex) then
+        ZO_Alert(UI_ALERT_CATEGORY_ERROR, SOUNDS.NEGATIVE_CLICK, SI_CBE_CRAFTBAG_ITEM_INVALID)
+        return
+    end
+    local callback = { util.WrapFunctions(backpackCallback, WithdrawCallback) }
+    table.insert(callback, craftbagCallback)
+    return util.TransferItemToBag(bagId, slotIndex, BAG_BACKPACK, quantity, callback)
+end
+
+--[[ Opens a retrieve dialog for a given slot index in the player or subscriber bank, 
+     and then automatically withdraws and stows them in the craft bag.
+     If bagId is not specified, then BAG_BANK is assumed.
+     If the backpack doesn't have at least one slot available, 
+     an alert is raised and no mats are transferred.
+     An optional callback can be raised both when the mats arrive in the backpack
+     and/or when they arrive in the craft bag. ]]
+function class.Bank:WithdrawDialog(bagId, slotIndex, backpackCallback, craftbagCallback)
     if type(slotIndex) == "function" or slotIndex == nil then
          craftbagCallback = backpackCallback
          backpackCallback = slotIndex
@@ -210,7 +261,11 @@ function class.Bank:Withdraw(bagId, slotIndex, backpackCallback, craftbagCallbac
     if bagId ~= BAG_BANK and bagId ~= BAG_SUBSCRIBER_BANK then
         return
     end
+    if not CanItemBeVirtual(bagId, slotIndex) then
+        ZO_Alert(UI_ALERT_CATEGORY_ERROR, SOUNDS.NEGATIVE_CLICK, SI_CBE_CRAFTBAG_ITEM_INVALID)
+        return
+    end
     local callback = { util.WrapFunctions(backpackCallback, WithdrawCallback) }
     table.insert(callback, craftbagCallback)
-    return util.TransferItemToBag(bagId, slotIndex, BAG_BACKPACK, nil, callback)
+    return util.TransferDialog(bagId, slotIndex, BAG_BACKPACK, SI_CBE_CRAFTBAG_BANK_WITHDRAW, SI_ITEM_ACTION_BANK_WITHDRAW, callback)
 end

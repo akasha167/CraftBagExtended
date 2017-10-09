@@ -36,14 +36,6 @@ function class.Settings:Initialize()
     local optionsTable = {
         {
             type = "checkbox",
-            name = GetString(SI_CBE_DISABLE_GUILDBANK_WITHDRAWAL_AUTO_STASH),
-            tooltip = GetString(SI_CBE_DISABLE_GUILDBANK_WITHDRAWAL_AUTO_STASH_TOOLTIP),
-            getFunc = function() return self.db.guildBankAutoStashOff end,
-            setFunc = function(value) self.db.guildBankAutoStashOff = value end,
-            default = self.defaults.guildBankAutoStashOff,
-        },
-        {
-            type = "checkbox",
             name = GetString(SI_CBE_PRIMARY_ACTIONS_USE_DEFAULT),
             tooltip = GetString(SI_CBE_PRIMARY_ACTIONS_USE_DEFAULT_TOOLTIP),
             getFunc = function() return self.db.primaryActionsUseDefault end,

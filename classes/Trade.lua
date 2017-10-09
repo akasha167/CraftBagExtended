@@ -14,6 +14,8 @@ function class.Trade:New(...)
 end
 
 local function OnTradeCanceled(eventCode)
+    util.Debug("OnTradeCanceled()", debug)
+    cbe.tradeSlotReservations = {}
     for tradeIndex = 1, TRADE_NUM_SLOTS do
         local slotIndex = cbe.tradeSlotMap[tradeIndex]
         if slotIndex then
@@ -24,18 +26,33 @@ local function OnTradeCanceled(eventCode)
     end
 end
 
+local function ReserveTradeIndex()
+    for i = 1, TRADE_NUM_SLOTS do
+        local _, tradeItemSlotIndex = GetTradeItemBagAndSlot(TRADE_ME, i)
+        if not tradeItemSlotIndex and not util.Contains(cbe.tradeSlotReservations, i) then
+            table.insert(cbe.tradeSlotReservations, i)
+            return i
+        end
+    end
+end
+
+local function UnreserveTradeIndex(tradeIndex)
+    util.RemoveValue(cbe.tradeSlotReservations, tradeIndex)
+end
+
 local function OnTradeItemAdded(eventCode, who, tradeIndex, itemSoundCategory)
     if who ~= TRADE_ME then return end
     
+    UnreserveTradeIndex(tradeIndex)
     local _, slotIndex = GetTradeItemBagAndSlot(TRADE_ME, tradeIndex)
-    if cbe.isAddingToTrade then 
+    util.Debug("OnTradeItemAdded(tradeIndex="..tostring(tradeIndex)..",slotIndex="..tostring(slotIndex)..")", debug)
+    if util.IsFromCraftBag(BAG_BACKPACK, slotIndex) then 
         cbe.tradeSlotMap[tradeIndex] = slotIndex
-        cbe.isAddingToTrade = nil
     else
         return 
     end
     local retrieveQueue = util.GetTransferQueue( BAG_VIRTUAL, BAG_BACKPACK )
-    local transferItem = retrieveQueue:Dequeue(BAG_BACKPACK, slotIndex)
+    local transferItem = retrieveQueue:Dequeue(slotIndex)
     
     if transferItem then
         transferItem:ExecuteCallback(slotIndex, tradeIndex)
@@ -46,10 +63,8 @@ local function OnTradeItemRemoved(eventCode, who, tradeIndex, itemSoundCategory)
     if who ~= TRADE_ME then return end
     local transferItem = cbe.tradeSlotRemovalQueue[tradeIndex]
     local slotIndex = cbe.tradeSlotMap[tradeIndex]
-    local callback
-    if transferItem then
-        callback = transferItem.callback
-    elseif not slotIndex then
+    util.Debug("OnTradeItemRemoved(tradeIndex="..tostring(tradeIndex)..",transferItem="..tostring(transferItem)..",slotIndex="..tostring(slotIndex), debug)
+    if not slotIndex then
         return
     end
     
@@ -62,17 +77,23 @@ local function OnTradeItemRemoved(eventCode, who, tradeIndex, itemSoundCategory)
         ZO_InventorySlot_OnMouseExit(inventorySlot)
     end
     
+    local callback, quantity
     if transferItem then
-        transferItem:ExecuteCallback(tradeIndex, tradeIndex)
+        transferItem:ExecuteCallback(slotIndex, tradeIndex)
+        callback = transferItem.callback
+        quantity = transferItem.quantity
+    else
+        quantity = GetSlotStackSize(BAG_BACKPACK, slotIndex)
     end
     
     -- Transfer mats back to craft bag
-    cbe:Stow(slotIndex, nil, callback)
+    cbe:Stow(slotIndex, quantity, callback)
 end
 
 function class.Trade:Setup()
     cbe.tradeSlotRemovalQueue = {}
     cbe.tradeSlotMap = {}
+    cbe.tradeSlotReservations = {}
     self.menu:SetAnchor(BOTTOMRIGHT, ZO_TradeMyControls, TOPRIGHT, 0, -12)
     -- Listen for bag slot update events so that we can process the callbacks
     EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_TRADE_CANCELED, OnTradeCanceled)
@@ -92,26 +113,42 @@ local function GetTradeSlotIndex(slotIndex)
     end
 end
 
+local function OnTransferDialogCanceled(dialog, transferItem)
+    CALLBACK_MANAGER:UnregisterCallback(cbe.name.."TransferDialogCanceled", OnTransferDialogCanceled)
+    if not transferItem or not transferItem.tradeIndex then
+        return
+    end
+    UnreserveTradeIndex(transferItem.tradeIndex)
+end
+
 --[[ Called after an Add to Offer operation successfully retrieves a craft bag item 
      to the backpack. Responsible for executing the "Add to Offer" part of the operation. ]]
 local function RetrieveCallback(transferItem)
-
+    CALLBACK_MANAGER:UnregisterCallback(cbe.name.."TransferDialogCanceled", OnTransferDialogCanceled)
     if not TRADE_WINDOW:IsTrading() then return end
     
     -- Add the stack to my trade items list
-    cbe.isAddingToTrade = true
     TRADE_WINDOW:AddItemToTrade(BAG_BACKPACK, transferItem.targetSlotIndex)
     
     -- If we're still waiting for the item to be added to the trade offer, then
     -- start waiting for it again.
     if transferItem:HasCallback() then
-        transferItem.queue:Enqueue(transferItem.slotIndex, transferItem.quantity, transferItem.callback)
+        transferItem:Requeue(BAG_BACKPACK)
     end
 end
 
 local function ValidateCanAddToOffer()
-    return TRADE_WINDOW:IsTrading() 
-           and ZO_SharedTradeWindow.FindMyNextAvailableSlot(ZO_Trade)
+    if not TRADE_WINDOW:IsTrading() or not ZO_SharedTradeWindow.FindMyNextAvailableSlot(ZO_Trade) then 
+        return false
+    end
+    
+    -- Don't transfer if you don't have a free proxy slot in your backpack
+    if util.GetSlotsAvailable(INVENTORY_BACKPACK) < 1 then
+        ZO_AlertEvent(EVENT_INVENTORY_IS_FULL, 1, 0)
+        return false
+    end
+    
+    return true
 end
 
 --[[ Adds mail-specific inventory slot crafting bag actions ]]
@@ -122,10 +159,7 @@ function class.Trade:AddSlotActions(slotInfo)
     --[[ For my trade slots, check the actual entry slot for the fromCraftBag flag]]
     if slotInfo.slotType == SLOT_TYPE_MY_TRADE then
         local inventoryType = PLAYER_INVENTORY.bagToInventoryType[slotInfo.bag]
-        local slots = PLAYER_INVENTORY.inventories[inventoryType].slots
-        if GetAPIVersion() >= 100019 then
-            slots = slots[slotInfo.bag]
-        end
+        local slots = PLAYER_INVENTORY.inventories[inventoryType].slots[slotInfo.bag]
         local slot = slots[slotInfo.slotIndex]
         slotInfo.fromCraftBag = slot.fromCraftBag
     end
@@ -167,9 +201,18 @@ end
      Otherwise, returns false. ]]
 function class.Trade:AddToOffer(slotIndex, quantity, backpackCallback, addedCallback)
     if not ValidateCanAddToOffer() then return false end
+    local tradeIndex = ReserveTradeIndex()
+    if not tradeIndex then
+        return false
+    end
     local callback = { util.WrapFunctions(backpackCallback, RetrieveCallback) }
     table.insert(callback, addedCallback)
-    return cbe:Retrieve(slotIndex, quantity, callback)
+    if cbe:Retrieve(slotIndex, quantity, callback) then
+        return true
+    else
+        UnreserveTradeIndex(tradeIndex)
+        return false
+    end
 end
 
 --[[ Opens a retrieve dialog for a given craft bag slot index, 
@@ -180,10 +223,24 @@ end
      Otherwise, returns false. ]]
 function class.Trade:AddToOfferDialog(slotIndex, backpackCallback, addedCallback)
     if not ValidateCanAddToOffer() then return false end
+    local tradeIndex = ReserveTradeIndex()
+    if not tradeIndex then
+        return false
+    end
     local callback = { util.WrapFunctions(backpackCallback, RetrieveCallback) }
     table.insert(callback, addedCallback)
-    cbe:RetrieveDialog(slotIndex, SI_CBE_CRAFTBAG_TRADE_ADD, 
-        SI_ITEM_ACTION_TRADE_ADD, callback) 
+    CALLBACK_MANAGER:RegisterCallback(cbe.name.."TransferDialogCanceled", OnTransferDialogCanceled)
+    local transferItem =
+        cbe:RetrieveDialog(slotIndex, SI_CBE_CRAFTBAG_TRADE_ADD, 
+                           SI_ITEM_ACTION_TRADE_ADD, callback)
+    if transferItem then
+        transferItem.tradeIndex = tradeIndex
+        return true        
+    else
+        CALLBACK_MANAGER:UnregisterCallback(cbe.name.."TransferDialogCanceled", OnTransferDialogCanceled)
+        UnreserveTradeIndex(tradeIndex)
+        return false
+    end
 end
 
 function class.Trade:FilterSlot(inventoryManager, inventory, slot)
@@ -204,6 +261,10 @@ end
      to the craft bag. Otherwise, returns false. ]]
 function class.Trade:RemoveFromOffer(slotIndex, removedCallback, stowedCallback)
     if not TRADE_WINDOW:IsTrading() then return false end
+    if not CanItemBeVirtual(BAG_BACKPACK, slotIndex) then
+        ZO_Alert(UI_ALERT_CATEGORY_ERROR, SOUNDS.NEGATIVE_CLICK, SI_CBE_CRAFTBAG_ITEM_INVALID)
+        return false
+    end
     
     local tradeIndex = GetTradeSlotIndex(slotIndex)
     
@@ -211,15 +272,27 @@ function class.Trade:RemoveFromOffer(slotIndex, removedCallback, stowedCallback)
         return false
     end
     
-    local stowQueue = util.GetTransferQueue(BAG_BACKPACK, BAG_VIRTUAL)
-    local callback = {}
-    table.insert(callback, removedCallback)
-    table.insert(callback, stowedCallback)
-    cbe.tradeSlotRemovalQueue[tradeIndex] = class.TransferItem:New(stowQueue, slotIndex, nil, callback)
+    if stowedCallback and not removedCallback then 
+        removedCallback = 1
+    end
+    local callback = { removedCallback, stowedCallback }
+    
+    if not cbe.tradeSlotRemovalQueue[tradeIndex] then
+        local transferQueue = util.GetTransferQueue(BAG_VIRTUAL, BAG_BACKPACK)
+        local transferItem = 
+            class.TransferItem:New(transferQueue, GetItemId(BAG_BACKPACK, slotIndex), 
+                                   GetSlotStackSize(BAG_BACKPACK, slotIndex), 
+                                   callback)
+        transferItem.targetSlotIndex = slotIndex
+        transferItem.location = cbe.constants.LOCATION.TARGET_BAG
+        cbe.tradeSlotRemovalQueue[tradeIndex] = transferItem
+    else
+        cbe.tradeSlotRemovalQueue[tradeIndex].callback = callback
+    end
     
     local soundCategory = GetItemSoundCategory(BAG_BACKPACK, slotIndex)
     PlayItemSound(soundCategory, ITEM_SOUND_ACTION_PICKUP)
     TradeRemoveItem(tradeIndex)
     
-    return CanItemBeVirtual(BAG_BACKPACK, slotIndex)
+    return true
 end

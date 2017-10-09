@@ -20,7 +20,7 @@ end
 function class.Inventory:AddSlotActions(slotInfo)
     local slotIndex = slotInfo.slotIndex
     local isShown = self:IsSceneShown()
-    if slotInfo.bag == BAG_BACKPACK and HasCraftBagAccess() 
+    if slotInfo.bag == BAG_BACKPACK and cbe.hasCraftBagAccess
        and CanItemBeVirtual(slotInfo.bag, slotIndex) 
        and not IsItemStolen(slotInfo.bag, slotIndex)
        and not slotInfo.slotData.locked

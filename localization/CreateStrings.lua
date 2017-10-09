@@ -23,6 +23,11 @@ ZO_CreateStringId("SI_CBE_CRAFTBAG_BANK_DEPOSIT",
     GetString(SI_ITEM_ACTION_BANK_DEPOSIT)
     ..GetString(SI_CBE_WORD_BREAK)
     ..GetString(SI_TRADING_HOUSE_POSTING_QUANTITY))
+
+ZO_CreateStringId("SI_CBE_CRAFTBAG_BANK_WITHDRAW", 
+    GetString(SI_ITEM_ACTION_BANK_WITHDRAW)
+    ..GetString(SI_CBE_WORD_BREAK)
+    ..GetString(SI_TRADING_HOUSE_POSTING_QUANTITY))
     
 -- Combine the built-in "Add" and "Quantity" terms
 ZO_CreateStringId("SI_CBE_CRAFTBAG_MAIL_ATTACH", 
@@ -47,3 +52,18 @@ ZO_CreateStringId("SI_CBE_CRAFTBAG_TRADE_ADD",
     GetString(SI_GAMEPAD_TRADE_ADD)
     ..GetString(SI_CBE_WORD_BREAK)
     ..GetString(SI_TRADING_HOUSE_POSTING_QUANTITY))
+
+-- Combine the built-in "Sell" and "Quantity" terms,
+ZO_CreateStringId("SI_CBE_CRAFTBAG_SELL_QUANTITY", 
+    GetString(SI_ITEM_ACTION_SELL)
+    ..GetString(SI_CBE_WORD_BREAK)
+    ..GetString(SI_TRADING_HOUSE_POSTING_QUANTITY))
+
+-- Item cannot be stored in the craft bag
+local guildBankString = GetString(SI_GAMEPAD_GUILD_BANK_CATEGORY_HEADER)
+local craftBagString = GetString(SI_GAMEPAD_INVENTORY_CRAFT_BAG_HEADER)
+local lowerGuildBankString = LocaleAwareToLower(guildBankString)
+local lowerCraftBagString = LocaleAwareToLower(craftBagString)
+local invalidItemString = string.gsub(GetString(SI_GUILDBANKRESULT4), guildBankString, craftBagString)
+invalidItemString = string.gsub(invalidItemString, lowerGuildBankString, lowerCraftBagString)
+ZO_CreateStringId("SI_CBE_CRAFTBAG_ITEM_INVALID", invalidItemString)

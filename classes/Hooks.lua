@@ -1,14 +1,11 @@
 local cbe  = CraftBagExtended
 local util = cbe.utility
+local debug = false
 
  --[[ Handle craft bag open/close events ]]
 local function OnCraftBagFragmentStateChange(oldState, newState)
-    -- On craft bag exit, stop listening for any transfers
-    if newState == SCENE_FRAGMENT_HIDDEN then 
-        util:ClearTransferQueues()
-        return 
     -- On craft bag showing event, move the info bar to the craft bag
-    elseif newState == SCENE_FRAGMENT_SHOWING then
+    if newState == SCENE_FRAGMENT_SHOWING then
         ZO_PlayerInventoryInfoBar:SetParent(ZO_CraftBag)
         if TweakIt and ExtendedInfoBar then
             ExtendedInfoBar:SetParent(ZO_CraftBag)
@@ -27,30 +24,6 @@ local function OnInventoryFragmentStateChange(oldState, newState)
     end
 end
 
---[[ Handles inventory item slot update events and raise any callbacks queued up. ]]
-local function OnInventorySingleSlotUpdate(eventCode, bagId, slotId, isNewItem, itemSoundCategory, updateReason)
-
-    local transferredItem, sourceBagId = util.GetTransferItem(bagId, slotId)
-    
-    -- Don't handle any update events in the craft bag. We want the backpack events.
-    if not transferredItem then 
-        util.Debug("No outstanding transfers found for bag "..tostring(bagId).." slot id "..tostring(slotId).." reason "..tostring(itemSoundCategory))
-        return 
-    end
-    
-    -- This flag marks inventory and bank slots for return/stow actions
-    if bagId ~= BAG_VIRTUAL and not transferredItem.noAutoReturn then
-        SHARED_INVENTORY:GenerateSingleSlotData(bagId, slotId).fromCraftBag = true
-    end
-    
-    -- Refresh the appropriate bag slot list
-    local inventoryType = PLAYER_INVENTORY.bagToInventoryType[bagId]
-    PLAYER_INVENTORY:UpdateList(inventoryType, true)
-    
-    -- Perform any configured callbacks
-    transferredItem:ExecuteCallback(slotId)
-end
-
 --[[ Handle scene changes involving a craft bag. ]]
 local function OnModuleSceneStateChange(oldState, newState)
     if newState == SCENE_SHOWING then
@@ -65,7 +38,7 @@ local function OnModuleSceneStateChange(oldState, newState)
 end
 
 --[[ Runs whenever a new inventory slot action is added. Used to ammend the
-     available keybinds, as well as supporess existing slot actions names that 
+     available keybinds, as well as suppress existing slot actions names that 
      would conflict with ours. ]]
 local function PreAddSlotAction(slotActions, actionStringId, actionCallback, actionType, visibilityFunction, options)
    
@@ -90,16 +63,6 @@ local function PreAddSlotAction(slotActions, actionStringId, actionCallback, act
     end
 end
 
---[[ When listening for transfer callbacks, handle any inventory or bank full
-     alerts that get raised by stopping all transfers. ]]
-local function PreAlert(category, soundId, message, ...)
-    if message == SI_INVENTORY_ERROR_INVENTORY_FULL 
-	   or message == SI_INVENTORY_ERROR_BANK_FULL
-	then
-        util:ClearTransferQueues()
-    end
-end
-
 local function PreInventorySlotActionsGetAction(slotActions)
     if not cbe.customSlotActionDescriptors 
        or not slotActions 
@@ -111,7 +74,7 @@ local function PreInventorySlotActionsGetAction(slotActions)
     cbe.addingSlotActions = true
     for _, moduleSlotAction in ipairs(cbe.customSlotActionDescriptors) do
         if moduleSlotAction[3] == "secondary" then
-            slotActions:AddSlotAction(unpack(moduleSlotAction))
+            slotActions:AddCustomSlotAction(unpack(moduleSlotAction))
         end
     end
     cbe.addingSlotActions = nil
@@ -176,7 +139,7 @@ local function PreDiscoverSlotActions(inventorySlot, slotActions)
         cbe.addingSlotActions = true
         for _, moduleSlotAction in ipairs(cbe.customSlotActionDescriptors) do
             if moduleSlotAction[3] ~= "secondary" then
-                slotActions:AddSlotAction(unpack(moduleSlotAction))
+                slotActions:AddCustomSlotAction(unpack(moduleSlotAction))
             end
         end
         cbe.addingSlotActions = nil
@@ -263,17 +226,24 @@ local function PreTransferDialogCanceled(dialog)
     -- If canceled, remove the transfer item from the queue
     cbe.transferDialogCanceled = true
     local transferItem = cbe.transferDialogItem
+    CALLBACK_MANAGER:FireCallbacks(cbe.name.."TransferDialogCanceled", dialog, transferItem)
     if not transferItem then return end
-    transferItem.queue:Dequeue(transferItem.slotIndex, cbe.constants.QUANTITY_UNSPECIFIED)
+    transferItem.queue:Dequeue(transferItem.targetSlotIndex)
+    if transferItem.queue.emptySlotTracker then
+        transferItem.queue.emptySlotTracker:UnreserveSlot(transferItem.targetSlotIndex)
+    end
+    util.Debug("Setting cbe.transferDialogItem to nil...", debug)
     cbe.transferDialogItem = nil
 end
 
 local function PreTransferDialogFinished(dialog)
-    if cbe.transferDialogCanceled then return end
+    util.Debug("PreTransferDialogFinished.", debug)
+    if cbe.transferDialogCanceled then
+        return
+    end
     
     -- Record the quantity entered from the dialog
     local transferItem = cbe.transferDialogItem
-    cbe.transferDialogItem = nil
     local quantity
     if IsInGamepadPreferredMode() then
         quantity = ZO_GamepadDialogItemSliderItemSliderSlider:GetValue()
@@ -282,27 +252,53 @@ local function PreTransferDialogFinished(dialog)
         quantity = transferDialog:GetSpinnerValue()
         
         -- Save or clear default quantity
-        local scope = util.GetTransferItemScope(transferDialog.targetBag)
+        local scope = util.GetTransferItemScope(transferDialog.bag, transferDialog.targetBag)
         local default = ZO_CheckButton_IsChecked(transferDialog.checkboxControl) and quantity or nil
-        local _, itemId = util.GetItemLinkAndId(transferDialog.bag, transferDialog.slotIndex)
+        local itemId = GetItemId(transferDialog.bag, transferDialog.slotIndex)
         cbe.settings:SetTransferDefault(scope, itemId, default)
     end
     if transferItem then
-        transferItem.queue:SetQuantity(transferItem, quantity)
+        util.Debug("Setting transferItem quantity to "..tostring(quantity).."...", debug)
+        transferItem:UpdateQuantity(quantity)
     end
+    cbe.transferDialogItem = nil
+    util.Debug("Setting cbe.transferDialogItem to nil...", debug)
 end
 
 local function PreTransferDialogRefresh(transferDialog)
 
     local self = transferDialog
-    local scope = util.GetTransferItemScope(transferDialog.targetBag)
-    local _, itemId = util.GetItemLinkAndId(transferDialog.bag, transferDialog.slotIndex)
+    local scope = util.GetTransferItemScope(transferDialog.bag, transferDialog.targetBag)
+    local itemId = GetItemId(transferDialog.bag, transferDialog.slotIndex)
     local default = cbe.settings:GetTransferDefault(scope, itemId, true)
     ZO_CheckButton_SetCheckState(transferDialog.checkboxControl, default ~= nil)
     if type(default) == "number" then
+        util.Debug("Setting transfer dialog quantity default to "..tostring(default).."...", debug)
         self.spinner:SetValue(default, true)
     end
 end
+ZO_ItemTransferDialog_Base.Transfer = function(self, quantity)
+    if quantity > 0 and cbe.transferDialogItem then
+        
+        local transferItem = cbe.transferDialogItem
+        util.Debug("Transfering "..tostring(quantity).." from "
+               ..util.GetBagName(transferItem.bag).." slotIndex "..tostring(transferItem.slotIndex)
+               .." to "..util.GetBagName(transferItem.targetBag)
+               .." slotIndex "..tostring(transferItem.targetSlotIndex), debug)
+    
+        -- Initiate the stack move to the target bag
+        if IsProtectedFunction("RequestMoveItem") then
+            CallSecureProtected("RequestMoveItem", transferItem.bag, transferItem.slotIndex, 
+                                transferItem.targetBag, transferItem.targetSlotIndex, quantity)
+        else
+            RequestMoveItem(transferItem.bag, transferItem.slotIndex, 
+                            transferItem.targetBag, transferItem.targetSlotIndex, quantity)
+        end
+    end
+end
+
+SYSTEMS:GetGamepadObject("ItemTransferDialog").Transfer = ZO_ItemTransferDialog_Base.Transfer
+SYSTEMS:GetKeyboardObject("ItemTransferDialog").Transfer = ZO_ItemTransferDialog_Base.Transfer
 
 function CraftBagExtended:InitializeHooks()
 
@@ -310,8 +306,6 @@ function CraftBagExtended:InitializeHooks()
     local _, _, _, _, tabsOffsetX = ZO_CraftBagTabs:GetAnchor(0)
     ZO_CraftBagTabs:ClearAnchors()
     ZO_CraftBagTabs:SetAnchor(BOTTOMRIGHT, ZO_CraftBagFilterDivider, TOPRIGHT, tabsOffsetX, -14, 0)
-    
-    ZO_PreHook("ZO_Alert", PreAlert)
     
     -- Disallow duplicates with same names
     ZO_PreHook(ZO_InventorySlotActions, "AddSlotAction", PreAddSlotAction)
@@ -323,9 +317,6 @@ function CraftBagExtended:InitializeHooks()
     
     ZO_PreHook(PLAYER_INVENTORY, "ShouldAddSlotToList", PreInventoryShouldAddSlotToList)
     ZO_PreHook(SCENE_MANAGER, "AddFragmentGroup", PreSceneManagerAddFragmentGroup)
-    
-    -- Listen for bag slot update events so that we can process the callback
-    EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_INVENTORY_SINGLE_SLOT_UPDATE, OnInventorySingleSlotUpdate)
     
     -- Get transfer dialog configuration object
     local transferDialogKeys = { 
