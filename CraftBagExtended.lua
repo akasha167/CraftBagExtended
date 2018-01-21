@@ -19,6 +19,16 @@ CraftBagExtended = {
             BAG_GUILDBANK,
             BAG_SUBSCRIBER_BANK,
             BAG_VIRTUAL,
+            BAG_HOUSE_BANK_ONE,
+            BAG_HOUSE_BANK_TWO,
+            BAG_HOUSE_BANK_THREE,
+            BAG_HOUSE_BANK_FOUR,
+            BAG_HOUSE_BANK_FIVE,
+            BAG_HOUSE_BANK_SIX,
+            BAG_HOUSE_BANK_SEVEN,
+            BAG_HOUSE_BANK_EIGHT,
+            BAG_HOUSE_BANK_NINE,
+            BAG_HOUSE_BANK_TEN,
         },
         SLOT_TYPES = Set {
             SLOT_TYPE_BANK_ITEM,
@@ -103,6 +113,21 @@ function CraftBagExtended:GuildBankDepositDialog(slotIndex, backpackCallback, gu
     return self.modules.guildBank:DepositDialog(slotIndex, backpackCallback, guildBankCallback)
 end
 
+--[[ Retrieves a given quantity of mats from the given craft bag slot index, 
+     and then automatically deposits them in the given house bank.
+     Automatically runs a given callback once the deposit is complete, 
+     if specified. ]]
+function CraftBagExtended:HouseBankDeposit(slotIndex, quantity, houseBankBagId, callback)
+    return self.modules.houseBank:Deposit(slotIndex, quantity, houseBankBagId, callback)
+end
+
+--[[ Opens the "Retrieve" from craft bag dialog for depositing to the player 
+     bank.  Automatically runs a given callback once the deposit is complete, 
+     if specified. ]]
+function CraftBagExtended:HouseBankDepositDialog(slotIndex, callback)
+    return self.modules.bank:DepositDialog(slotIndex, callback)
+end
+
 --[[ Retrieves a given quantity of mats from a given craft bag slot index, 
      and then automatically attaches the stack onto the pending mail.
      If quantity is nil, then the max stack is deposited.
@@ -134,38 +159,40 @@ end
      the backpack without a dialog prompt.  
      If quantity is nil, then the max stack is moved. If a callback function 
      is specified, it will be called when the mats arrive in the backpack. ]]
-function CraftBagExtended:Retrieve(slotIndex, quantity, callback)
-    return self.utility.Retrieve(slotIndex, quantity, callback)
+function CraftBagExtended:Retrieve(slotIndex, quantity, callback, ...)
+    return self.utility.Retrieve(slotIndex, quantity, callback, ...)
 end
 
 --[[ Opens the "Retrieve" from craft bag dialog with a custom action name for
      the transfer button.  Automatically runs a given callback once the transfer
      is complete, if specified. ]]
-function CraftBagExtended:RetrieveDialog(slotIndex, dialogTitle, buttonText, callback)
+function CraftBagExtended:RetrieveDialog(slotIndex, dialogTitle, buttonText, callback, ...)
     return self.utility.TransferDialog( 
         BAG_VIRTUAL, slotIndex, BAG_BACKPACK, 
         dialogTitle or GetString(SI_CBE_CRAFTBAG_RETRIEVE_QUANTITY), 
         buttonText or GetString(SI_ITEM_ACTION_REMOVE_ITEMS_FROM_CRAFT_BAG), 
-        callback )
+        callback,
+        ...)
 end
 
 --[[ Moves a given quantity from the given backpack inventory slot index into 
      the craft bag without a dialog prompt.  
      If quantity is nil, then the whole stack is moved. If a callback function 
      is specified, it will be called when the mats arrive in the craft bag. ]]
-function CraftBagExtended:Stow(slotIndex, quantity, callback)
-    return self.utility.Stow(slotIndex, quantity, callback)
+function CraftBagExtended:Stow(slotIndex, quantity, callback, ...)
+    return self.utility.Stow(slotIndex, quantity, callback, ...)
 end
 
 --[[ Opens the "Stow" to craft bag dialog with a custom action name for
      the transfer button.  Automatically runs a given callback once the transfer
      is complete, if specified. ]]
-function CraftBagExtended:StowDialog(slotIndex, dialogTitle, buttonText, callback)
+function CraftBagExtended:StowDialog(slotIndex, dialogTitle, buttonText, callback, ...)
     return self.utility.TransferDialog( 
         BAG_BACKPACK, slotIndex, BAG_VIRTUAL, 
         dialogTitle or GetString(SI_CBE_CRAFTBAG_STOW_QUANTITY), 
         buttonText or GetString(SI_ITEM_ACTION_ADD_ITEMS_TO_CRAFT_BAG), 
-        callback )
+        callback,
+        ...)
 end
 
 --[[ Moves a given quantity of a craft bag slot to the backpack and then adds it
@@ -266,6 +293,7 @@ local function OnAddonLoaded(event, name)
     self.modules = {
         bank         = class.Bank:New(),
         guildBank    = class.GuildBank:New(),
+        houseBank    = class.HouseBank:New(),
         inventory    = class.Inventory:New(),
         mail         = class.Mail:New(),
         trade        = class.Trade:New(),

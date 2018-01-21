@@ -74,6 +74,13 @@ function util.GetBagName(bag)
         return GetString(SI_GAMEPAD_INVENTORY_CATEGORY_HEADER)
     elseif bag == BAG_BANK then 
         return GetString(SI_GAMEPAD_BANK_CATEGORY_HEADER)
+    elseif bag >= BAG_HOUSE_BANK_ONE and bag <= BAG_HOUSE_BANK_TEN then
+        local nickname = util.GetHouseBankNickname(bag)
+        if nickname then
+            return string.gsub(nickname, " ", "")
+        end
+        local houseBankIndex = bag - BAG_HOUSE_BANK_ONE + 1
+        return string.gsub(GetString(SI_COLLECTIBLECATEGORYTYPE25), " ", "") .. zo_strformat("<<N:1>>", houseBankIndex)
     elseif bag == BAG_SUBSCRIBER_BANK then
         return string.gsub(GetString(SI_NOTIFICATIONTYPE18)..GetString(SI_GAMEPAD_BANK_CATEGORY_HEADER), " ", "")
     elseif bag == BAG_GUILDBANK then 
@@ -84,6 +91,24 @@ function util.GetBagName(bag)
         return string.gsub(GetString(SI_GAMEPAD_INVENTORY_CRAFT_BAG_HEADER), " ", "")
     else
         return ""
+    end
+end
+
+function util.GetHouseBankNickname(bag)
+    if bag < BAG_HOUSE_BANK_ONE or bag > BAG_HOUSE_BANK_TEN then
+        return
+    end
+    local collectibleId = GetCollectibleForHouseBankBag(bag)
+    if collectibleId == 0 then
+        return
+    end
+    local collectibleData = ZO_COLLECTIBLE_DATA_MANAGER:GetCollectibleDataById(collectibleId)
+    if not collectibleData then
+        return
+    end
+    local nickname = collectibleData:GetNickname()
+    if nickname and nickname ~= "" then
+        return nickname
     end
 end
 
@@ -124,12 +149,12 @@ function util.GetSlotsAvailable(inventoryType)
     if inventoryType == INVENTORY_BACKPACK then
         size = GetNumBagFreeSlots(BAG_BACKPACK) 
                - util.GetSingleton(class.EmptySlotTracker, BAG_BACKPACK):GetReservedSlotCount()
-           
+    
     elseif inventoryType == INVENTORY_GUILDBANK then
         size = GetNumBagFreeSlots(BAG_GUILDBANK) 
                - util.GetTransferQueue( BAG_BACKPACK, BAG_GUILDBANK ).itemCount 
                - util.GetTransferQueue( BAG_VIRTUAL, BAG_BACKPACK ).itemCount
-               
+    
     elseif inventoryType == INVENTORY_BANK then
         size = GetNumBagFreeSlots(BAG_BANK) 
                - util.GetTransferQueue( BAG_BACKPACK, BAG_BANK ).itemCount
@@ -138,6 +163,12 @@ function util.GetSlotsAvailable(inventoryType)
             size = size + GetNumBagFreeSlots(BAG_SUBSCRIBER_BANK) 
                    - util.GetTransferQueue( BAG_BACKPACK, BAG_SUBSCRIBER_BANK ).itemCount
         end
+        
+    elseif inventoryType == INVENTORY_HOUSE_BANK then
+        local bankingBag = GetBankingBag()
+        size = GetNumBagFreeSlots(bankingBag) 
+               - util.GetTransferQueue( BAG_BACKPACK, bankingBag ).itemCount
+               - util.GetTransferQueue( BAG_VIRTUAL, BAG_BACKPACK ).itemCount
     end
     
     if size then
@@ -397,22 +428,22 @@ end
      the backpack without a dialog prompt.  
      If quantity is nil, then the max stack is moved. If a callback function 
      is specified, it will be called when the mats arrive in the backpack. ]]
-function util.Retrieve(slotIndex, quantity, callback, module)
-    return util.TransferItemToBag(BAG_VIRTUAL, slotIndex, BAG_BACKPACK, quantity, callback, module)
+function util.Retrieve(slotIndex, quantity, callback, ...)
+    return util.TransferItemToBag(BAG_VIRTUAL, slotIndex, BAG_BACKPACK, quantity, callback, ...)
 end
 
 --[[ Moves a given quantity from the given backpack inventory slot index into 
      the craft bag without a dialog prompt.  
      If quantity is nil, then the whole stack is moved. If a callback function 
      is specified, it will be called when the mats arrive in the craft bag. ]]
-function util.Stow(slotIndex, quantity, callback, module)
-    return util.TransferItemToBag(BAG_BACKPACK, slotIndex, BAG_VIRTUAL, quantity, callback, module)
+function util.Stow(slotIndex, quantity, callback, ...)
+    return util.TransferItemToBag(BAG_BACKPACK, slotIndex, BAG_VIRTUAL, quantity, callback, ...)
 end
 
 --[[ Opens the "Retrieve" or "Stow" transfer dialog with a custom action name for
      the transfer button.  Automatically runs a given callback once the transfer
      is complete, if specified. ]]
-function util.TransferDialog(bag, slotIndex, targetBag, dialogTitle, buttonText, callback, module)
+function util.TransferDialog(bag, slotIndex, targetBag, dialogTitle, buttonText, callback, ...)
     
     -- Validate that the transfer is legit
     local transferDialogInfo
@@ -429,7 +460,8 @@ function util.TransferDialog(bag, slotIndex, targetBag, dialogTitle, buttonText,
         transferQueue:Enqueue(
             slotIndex, 
             cbe.constants.QUANTITY_UNSPECIFIED, 
-            callback
+            callback,
+            ...
         )
     if not transferItem then 
         return false
@@ -447,10 +479,6 @@ function util.TransferDialog(bag, slotIndex, targetBag, dialogTitle, buttonText,
         checkbox:SetAnchor(LEFT, transferDialog.spinner.control, RIGHT, 32, 0)
         ZO_CheckButton_SetLabelText(checkbox, GetString(SI_AUDIOSPEAKERCONFIGURATIONS0)) -- "Default"
         transferDialog.checkboxControl = checkbox
-    end
-    
-    if module then
-        transferItem.module = module
     end
     
     -- Do not remove. Used by the dialog finished hooks to properly set the
@@ -476,16 +504,13 @@ end
      the given bag without a dialog prompt.  
      If quantity is nil, then the max stack is moved. If a callback function 
      is specified, it will be called when the mats arrive in the target bag. ]]
-function util.TransferItemToBag(bag, slotIndex, targetBag, quantity, callback, module)
+function util.TransferItemToBag(bag, slotIndex, targetBag, quantity, callback, ...)
     
     -- Queue up the transfer
     local transferQueue = util.GetTransferQueue(bag, targetBag)
-    local transferItem = transferQueue:Enqueue(slotIndex, quantity, callback)
+    local transferItem = transferQueue:Enqueue(slotIndex, quantity, callback, ...)
     if not transferItem then
         return
-    end
-    if module then
-        transferItem.module = module
     end
     if not quantity then
         quantity = transferItem.quantity

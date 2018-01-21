@@ -250,9 +250,9 @@ function class.TransferQueue:DequeueTargetSlotIndex(targetSlotIndex)
     return item
 end
 
-function class.TransferQueue:Enqueue(slotIndex, quantity, callback)
+function class.TransferQueue:Enqueue(slotIndex, quantity, callback, ...)
     
-    local item = class.TransferItem:New(self, slotIndex, quantity, callback)
+    local item = class.TransferItem:New(self, slotIndex, quantity, callback, ...)
     return self:AddItem(item)
 end
 

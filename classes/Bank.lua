@@ -5,11 +5,23 @@ local name  = cbe.name .. "Bank"
 local debug = false
 class.Bank  = class.Module:Subclass()
 
-function class.Bank:New(...)        
-    local instance = class.Module.New(self, 
-        name, "bank", 
+function class.Bank:New(this, className, scene, bankFragment, ...)
+    if this == nil then
+        this = self
+    end
+    if className == nil then
+        className = name
+    end
+    if scene == nil then
+        scene = "bank"
+    end
+    if bankFragment == nil then
+        bankFragment = BANK_FRAGMENT
+    end
+    local instance = class.Module.New(this, 
+        className, scene, 
         ZO_SharedRightPanelBackground, BACKPACK_BANK_LAYOUT_FRAGMENT, true)
-    instance:Setup()
+    instance:Setup(bankFragment)
     return instance
 end
     
@@ -18,9 +30,10 @@ end
 local function OnBankIsFull(eventCode)
     
     util.Debug("Bank is full!", debug)
-    local depositQueue = util.GetTransferQueue( BAG_BACKPACK, BAG_BANK )
+    local bankingBag = GetBankingBag()
+    local depositQueue = util.GetTransferQueue( BAG_BACKPACK, bankingBag )
     local transferItem = depositQueue:UnqueueSourceBag()
-    if not transferItem then
+    if not transferItem and bankingBag == BAG_BANK then
         depositQueue = util.GetTransferQueue( BAG_BACKPACK, BAG_SUBSCRIBER_BANK )
         transferItem = depositQueue:UnqueueSourceBag()
     end
@@ -29,13 +42,17 @@ local function OnBankIsFull(eventCode)
         cbe:Stow(transferItem.slotIndex)
     end
 end
-function class.Bank:Setup()
+function class.Bank:Setup(bankFragment)
     
     self.menu:SetAnchor(TOPLEFT, ZO_SharedRightPanelBackground, TOPLEFT, 55, 0)
     
     EVENT_MANAGER:RegisterForEvent(self.name, EVENT_BANK_IS_FULL, OnBankIsFull)
     
-    self.RegisterTabCallbacks(self.scene, BANK_FRAGMENT)
+    self.RegisterTabCallbacks(self.scene, bankFragment)
+    
+    if bankFragment ~= BANK_FRAGMENT then
+        return
+    end
     
     -- Move bank space purchase keybind to left to make space for withdraw quantity keybind on right
     self.buyBankSpaceButtonGroup =  { alignment = KEYBIND_STRIP_ALIGN_LEFT }
@@ -48,7 +65,7 @@ function class.Bank:Setup()
             break
         end
     end
-    BANK_FRAGMENT:RegisterCallback("StateChange", 
+    bankFragment:RegisterCallback("StateChange", 
         function (oldState, newState)
             if newState == SCENE_FRAGMENT_SHOWN then
                 KEYBIND_STRIP:AddKeybindButtonGroup(self.buyBankSpaceButtonGroup)
@@ -120,13 +137,13 @@ local function ValidateCanDeposit(bag, slotIndex)
     end
     
     return true
-end           
+end
 
 --[[ Adds guildbank-specific inventory slot crafting bag actions ]]
 function class.Bank:AddSlotActions(slotInfo)
 
     -- Only add these actions when the player bank screen is open on the craft bag tab
-    if not PLAYER_INVENTORY:IsBanking() then return end
+    if not PLAYER_INVENTORY:IsBanking() or GetBankingBag() ~= BAG_BANK then return end
     
     if slotInfo.slotType == SLOT_TYPE_BANK_ITEM and CanItemBeVirtual(slotInfo.bag, slotInfo.slotIndex) then
     
@@ -186,7 +203,7 @@ function class.Bank:DepositDialog(slotIndex, backpackCallback, bankCallback)
     local callback = { util.WrapFunctions(backpackCallback, RetrieveCallback) }
     table.insert(callback, bankCallback)
     return cbe:RetrieveDialog(slotIndex, SI_CBE_CRAFTBAG_BANK_DEPOSIT, SI_ITEM_ACTION_BANK_DEPOSIT, callback)
-end   
+end
 
 function class.Bank:FilterSlot(inventoryManager, inventory, slot)
     if not PLAYER_INVENTORY:IsBanking() then
@@ -229,7 +246,7 @@ function class.Bank:Withdraw(bagId, slotIndex, quantity, backpackCallback, craft
     if not bagId then
         bagId = BAG_BANK
     end
-    if bagId ~= BAG_BANK and bagId ~= BAG_SUBSCRIBER_BANK then
+    if bagId ~= GetBankingBag() and bagId ~= BAG_SUBSCRIBER_BANK then
         return
     end
     if not CanItemBeVirtual(bagId, slotIndex) then
@@ -258,7 +275,7 @@ function class.Bank:WithdrawDialog(bagId, slotIndex, backpackCallback, craftbagC
     if not bagId then
         bagId = BAG_BANK
     end
-    if bagId ~= BAG_BANK and bagId ~= BAG_SUBSCRIBER_BANK then
+    if bagId ~= GetBankingBag() and bagId ~= BAG_SUBSCRIBER_BANK then
         return
     end
     if not CanItemBeVirtual(bagId, slotIndex) then

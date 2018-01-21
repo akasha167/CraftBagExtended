@@ -8,9 +8,9 @@ local debug = false
 local LTO = LibStub("LibTimeout")
 local instanceId = 0
 
-function class.TransferItem:New(...)
+function class.TransferItem:New(queue, slotIndex, quantity, callback, ...)
     local instance = ZO_Object.New(self)
-    instance:Initialize(...)
+    instance:Initialize(queue, slotIndex, quantity, callback, ...)
     return instance
 end
 
@@ -19,7 +19,7 @@ local function GetNewInstanceId()
     return instanceId
 end
 
-function class.TransferItem:Initialize(queue, slotIndex, quantity, callback)
+function class.TransferItem:Initialize(queue, slotIndex, quantity, callback, ...)
     local itemLink = GetItemLink(queue.sourceBag, slotIndex)
     local itemId = GetItemId(queue.sourceBag, slotIndex)
     if not quantity then
@@ -40,6 +40,7 @@ function class.TransferItem:Initialize(queue, slotIndex, quantity, callback)
     self.quantity = quantity
     self.targetBag = queue.targetBag
     self.callback = callback
+    self.callbackParams = { ... }
     self.location = cbe.constants.LOCATION.SOURCE_BAG
     self.instanceId = GetNewInstanceId()
     self.name = name .. tostring(self.instanceId)
@@ -74,27 +75,38 @@ function class.TransferItem:ExecuteCallback(targetSlotIndex, ...)
     
     -- If multiple callbacks are specified, pop the first one off
     local callback
+    local callbackParams
     if type(self.callback) == "table"  then
         if #self.callback == 0 then
             self.callback = nil
+            self.callbackParams = nil
             callback = nil
+            callbackParams = nil
         else
             callback = table.remove(self.callback, 1)
+            if #self.callbackParams > 0 then
+                callbackParams = table.remove(self.callbackParams, 1)
+            else
+                callbackParams = { }
+            end
             if #self.callback == 0 then
                 self.callback = nil
+                self.callbackParams = nil
             end
         end
     -- Only one callback. Clear it.
     else
         callback = self.callback
+        callbackParams = self.callbackParams
         self.callback = nil
+        self.callbackParams = nil
     end
     
     -- Raise the callback, if it's a function. Otherwise, ignore.
     if type(callback) == "function" then
         util.Debug(self.name..": calling callback on bag "..util.GetBagName(self.targetBag).." slot "..tostring(targetSlotIndex), debug)
         self.targetSlotIndex = targetSlotIndex
-        callback(self, ...)
+        callback(self, callbackParams, ...)
     else
         util.Debug(self.name..": callback on bag "..util.GetBagName(self.targetBag).." slot "..tostring(targetSlotIndex).." was not a function. it was a "..type(callback), debug)
     end
