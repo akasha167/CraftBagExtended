@@ -30,7 +30,7 @@ end
 local function OnBankIsFull(eventCode)
     
     util.Debug("Bank is full!", debug)
-    local bankingBag = GetBankingBag()
+    local bankingBag = (GetBankingBag and GetBankingBag()) or BAG_BANK
     local depositQueue = util.GetTransferQueue( BAG_BACKPACK, bankingBag )
     local transferItem = depositQueue:UnqueueSourceBag()
     if not transferItem and bankingBag == BAG_BANK then
@@ -143,7 +143,7 @@ end
 function class.Bank:AddSlotActions(slotInfo)
 
     -- Only add these actions when the player bank screen is open on the craft bag tab
-    if not PLAYER_INVENTORY:IsBanking() or GetBankingBag() ~= BAG_BANK then return end
+    if not PLAYER_INVENTORY:IsBanking() or (GetBankingBag and GetBankingBag() ~= BAG_BANK) then return end
     
     if slotInfo.slotType == SLOT_TYPE_BANK_ITEM and CanItemBeVirtual(slotInfo.bag, slotInfo.slotIndex) then
     
@@ -228,6 +228,18 @@ function class.Bank.RegisterTabCallbacks(scene, bankFragment)
         end)
 end
 
+function ValidateBagId(bagId)
+    if bagId == BAG_SUBSCRIBER_BANK then
+        return true
+    elseif GetBankingBag then
+        if bagId == GetBankingBag() then
+            return true
+        end
+    elseif bagId == BAG_BANK then
+        return true
+    end
+end
+
 --[[ Withdraws a given quantity of mats from the player or subscriber bank
      and then automatically stows them in the craft bag.
      If bagId is not specified, then BAG_BANK is assumed.
@@ -246,7 +258,7 @@ function class.Bank:Withdraw(bagId, slotIndex, quantity, backpackCallback, craft
     if not bagId then
         bagId = BAG_BANK
     end
-    if bagId ~= GetBankingBag() and bagId ~= BAG_SUBSCRIBER_BANK then
+    if not ValidateBagId(bagId) then
         return
     end
     if not CanItemBeVirtual(bagId, slotIndex) then
@@ -275,7 +287,7 @@ function class.Bank:WithdrawDialog(bagId, slotIndex, backpackCallback, craftbagC
     if not bagId then
         bagId = BAG_BANK
     end
-    if bagId ~= GetBankingBag() and bagId ~= BAG_SUBSCRIBER_BANK then
+    if not ValidateBagId(bagId) then
         return
     end
     if not CanItemBeVirtual(bagId, slotIndex) then

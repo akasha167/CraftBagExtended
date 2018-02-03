@@ -113,6 +113,8 @@ function CraftBagExtended:GuildBankDepositDialog(slotIndex, backpackCallback, gu
     return self.modules.guildBank:DepositDialog(slotIndex, backpackCallback, guildBankCallback)
 end
 
+if GetBankingBag then
+
 --[[ Retrieves a given quantity of mats from the given craft bag slot index, 
      and then automatically deposits them in the given house bank.
      Automatically runs a given callback once the deposit is complete, 
@@ -126,6 +128,8 @@ end
      if specified. ]]
 function CraftBagExtended:HouseBankDepositDialog(slotIndex, callback)
     return self.modules.bank:DepositDialog(slotIndex, callback)
+end
+
 end
 
 --[[ Retrieves a given quantity of mats from a given craft bag slot index, 
@@ -293,13 +297,16 @@ local function OnAddonLoaded(event, name)
     self.modules = {
         bank         = class.Bank:New(),
         guildBank    = class.GuildBank:New(),
-        houseBank    = class.HouseBank:New(),
         inventory    = class.Inventory:New(),
         mail         = class.Mail:New(),
         trade        = class.Trade:New(),
         tradingHouse = class.TradingHouse:New(),
         vendor       = class.Vendor:New(),
     }
+    
+    if GetBankingBag then
+        self.modules.houseBank = class.HouseBank:New()
+    end
     
     self.hasCraftBagAccess = HasCraftBagAccess()
     

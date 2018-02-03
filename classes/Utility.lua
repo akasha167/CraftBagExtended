@@ -74,7 +74,7 @@ function util.GetBagName(bag)
         return GetString(SI_GAMEPAD_INVENTORY_CATEGORY_HEADER)
     elseif bag == BAG_BANK then 
         return GetString(SI_GAMEPAD_BANK_CATEGORY_HEADER)
-    elseif bag >= BAG_HOUSE_BANK_ONE and bag <= BAG_HOUSE_BANK_TEN then
+    elseif GetBankingBag and bag >= BAG_HOUSE_BANK_ONE and bag <= BAG_HOUSE_BANK_TEN then
         local nickname = util.GetHouseBankNickname(bag)
         if nickname then
             return string.gsub(nickname, " ", "")
@@ -164,7 +164,7 @@ function util.GetSlotsAvailable(inventoryType)
                    - util.GetTransferQueue( BAG_BACKPACK, BAG_SUBSCRIBER_BANK ).itemCount
         end
         
-    elseif inventoryType == INVENTORY_HOUSE_BANK then
+    elseif GetBankingBag and inventoryType == INVENTORY_HOUSE_BANK then
         local bankingBag = GetBankingBag()
         size = GetNumBagFreeSlots(bankingBag) 
                - util.GetTransferQueue( BAG_BACKPACK, bankingBag ).itemCount
