@@ -68,13 +68,17 @@ end
 --[[ Outputs a string without spaces describing the given inventory bag.  
      Used for naming instances related to certain bags. ]]
 function util.GetBagName(bag)
+    if not bag then
+        return ""
+    end
+    util.Debug("util.GetBagName("..tostring(bag)..")", debug)
     if bag == BAG_WORN then
         return GetString(SI_CHARACTER_EQUIP_TITLE)
     elseif bag == BAG_BACKPACK then
         return GetString(SI_GAMEPAD_INVENTORY_CATEGORY_HEADER)
     elseif bag == BAG_BANK then 
         return GetString(SI_GAMEPAD_BANK_CATEGORY_HEADER)
-    elseif GetBankingBag and bag >= BAG_HOUSE_BANK_ONE and bag <= BAG_HOUSE_BANK_TEN then
+    elseif bag >= BAG_HOUSE_BANK_ONE and bag <= BAG_HOUSE_BANK_TEN then
         local nickname = util.GetHouseBankNickname(bag)
         if nickname then
             return string.gsub(nickname, " ", "")
@@ -164,7 +168,7 @@ function util.GetSlotsAvailable(inventoryType)
                    - util.GetTransferQueue( BAG_BACKPACK, BAG_SUBSCRIBER_BANK ).itemCount
         end
         
-    elseif GetBankingBag and inventoryType == INVENTORY_HOUSE_BANK then
+    elseif inventoryType == INVENTORY_HOUSE_BANK then
         local bankingBag = GetBankingBag()
         size = GetNumBagFreeSlots(bankingBag) 
                - util.GetTransferQueue( BAG_BACKPACK, bankingBag ).itemCount

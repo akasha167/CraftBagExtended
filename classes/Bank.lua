@@ -231,11 +231,7 @@ end
 function ValidateBagId(bagId)
     if bagId == BAG_SUBSCRIBER_BANK then
         return true
-    elseif GetBankingBag then
-        if bagId == GetBankingBag() then
-            return true
-        end
-    elseif bagId == BAG_BANK then
+    elseif bagId == GetBankingBag() then
         return true
     end
 end
