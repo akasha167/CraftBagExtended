@@ -116,9 +116,9 @@ local function PreDiscoverSlotActions(inventorySlot, slotActions)
     if fromCraftBag or cbe.constants.SLOT_TYPES[slotType] then
         
         if not slotActions.craftBagExtendedHooked then
-            ZO_PreHook(slotActions, "Clear", PreInventorySlotActionsClear)
-            ZO_PreHook(slotActions, "GetAction", PreInventorySlotActionsGetAction)
-            ZO_PreHook(slotActions, "Show", PreInventorySlotActionsGetAction)
+            util.PreHook(slotActions, "Clear", PreInventorySlotActionsClear)
+            util.PreHook(slotActions, "GetAction", PreInventorySlotActionsGetAction)
+            util.PreHook(slotActions, "Show", PreInventorySlotActionsGetAction)
             slotActions.craftBagExtendedHooked = true
         end
         cbe.customSlotActionDescriptors = {}
@@ -308,15 +308,15 @@ function CraftBagExtended:InitializeHooks()
     ZO_CraftBagTabs:SetAnchor(BOTTOMRIGHT, ZO_CraftBagFilterDivider, TOPRIGHT, tabsOffsetX, -14, 0)
     
     -- Disallow duplicates with same names
-    ZO_PreHook(ZO_InventorySlotActions, "AddSlotAction", PreAddSlotAction)
+    util.PreHook(ZO_InventorySlotActions, "AddSlotAction", PreAddSlotAction)
     
-    ZO_PreHook("ZO_InventorySlot_DiscoverSlotActionsFromActionList", PreDiscoverSlotActions)
-    ZO_PreHook(ZO_ItemSlotActionsController, "AddSubCommand", PreItemSlotActionsControllerAddSubCommand)
+    util.PreHook("ZO_InventorySlot_DiscoverSlotActionsFromActionList", PreDiscoverSlotActions)
+    util.PreHook(ZO_ItemSlotActionsController, "AddSubCommand", PreItemSlotActionsControllerAddSubCommand)
     
     util.PreHookReturn("IsItemBound", PreIsItemBound)
     
-    ZO_PreHook(PLAYER_INVENTORY, "ShouldAddSlotToList", PreInventoryShouldAddSlotToList)
-    ZO_PreHook(SCENE_MANAGER, "AddFragmentGroup", PreSceneManagerAddFragmentGroup)
+    util.PreHook(PLAYER_INVENTORY, "ShouldAddSlotToList", PreInventoryShouldAddSlotToList)
+    util.PreHook(SCENE_MANAGER, "AddFragmentGroup", PreSceneManagerAddFragmentGroup)
     
     -- Get transfer dialog configuration object
     local transferDialogKeys = { 
@@ -342,7 +342,7 @@ function CraftBagExtended:InitializeHooks()
     end
     
     --[[ Load any default values for the transfer dialog ]]
-    ZO_PreHook(SYSTEMS:GetKeyboardObject("ItemTransferDialog"), "Refresh", PreTransferDialogRefresh)
+    util.PreHook(SYSTEMS:GetKeyboardObject("ItemTransferDialog"), "Refresh", PreTransferDialogRefresh)
     
     --[[ Handle craft bag open/close events ]]
     CRAFT_BAG_FRAGMENT:RegisterCallback("StateChange",  OnCraftBagFragmentStateChange)
