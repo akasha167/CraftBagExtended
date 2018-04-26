@@ -334,23 +334,23 @@ end
 
 --[[ Nonbroken version of ZO_Prehook. ]]
 function util.PreHook(objectTable, existingFunctionName, hookFunction)
-	if type(objectTable) == "string" then
-		hookFunction = existingFunctionName
-		existingFunctionName = objectTable
-		objectTable = _G
-	end
+    if(type(objectTable) == "string") then
+        hookFunction = existingFunctionName
+        existingFunctionName = objectTable
+        objectTable = _G
+    end
+     
+    local existingFn = objectTable[existingFunctionName]
+    if((existingFn ~= nil) and (type(existingFn) == "function"))
+    then    
+        local newFn =   function(...)
+                            if(not hookFunction(...)) then
+                                return existingFn(...)
+                            end
+                        end
 
-	local existingFn = objectTable[existingFunctionName]
-	local newFn
-	if existingFn and type(existingFn) == "function" then
-		newFn = function(...)
-			hookFunction(...)
-			return existingFn(...)
-		end
-	else
-		newFn = hookFunction
-	end
-	objectTable[existingFunctionName] = newFn
+        objectTable[existingFunctionName] = newFn
+    end
 end
 
 --[[ Similar to ZO_PreHook, but works with functions that return a value. 

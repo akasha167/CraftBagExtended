@@ -478,24 +478,24 @@ local function DividerFactory(pool)
 end
 
 ---- Hook points for context menu -----
-local function PreHook(objectTable, existingFunctionName, hookFunction)
-	if type(objectTable) == "string" then
-		hookFunction = existingFunctionName
-		existingFunctionName = objectTable
-		objectTable = _G
-	end
+function PreHook(objectTable, existingFunctionName, hookFunction)
+    if(type(objectTable) == "string") then
+        hookFunction = existingFunctionName
+        existingFunctionName = objectTable
+        objectTable = _G
+    end
+     
+    local existingFn = objectTable[existingFunctionName]
+    if((existingFn ~= nil) and (type(existingFn) == "function"))
+    then    
+        local newFn =   function(...)
+                            if(not hookFunction(...)) then
+                                return existingFn(...)
+                            end
+                        end
 
-	local existingFn = objectTable[existingFunctionName]
-	local newFn
-	if existingFn and type(existingFn) == "function" then
-		newFn = function(...)
-			hookFunction(...)
-			return existingFn(...)
-		end
-	else
-		newFn = hookFunction
-	end
-	objectTable[existingFunctionName] = newFn
+        objectTable[existingFunctionName] = newFn
+    end
 end
 
 local function HookContextMenu()
