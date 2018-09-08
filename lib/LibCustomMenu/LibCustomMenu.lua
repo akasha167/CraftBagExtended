@@ -2,7 +2,7 @@
 -- thanks to: baertram & circonian
 
 -- Register with LibStub
-local MAJOR, MINOR = "LibCustomMenu", 6.5
+local MAJOR, MINOR = "LibCustomMenu", 6.6
 local lib, oldminor = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end -- the same or newer version of this lib is already loaded into memory
 
@@ -478,24 +478,24 @@ local function DividerFactory(pool)
 end
 
 ---- Hook points for context menu -----
-function PreHook(objectTable, existingFunctionName, hookFunction)
-    if(type(objectTable) == "string") then
-        hookFunction = existingFunctionName
-        existingFunctionName = objectTable
-        objectTable = _G
-    end
-     
-    local existingFn = objectTable[existingFunctionName]
-    if((existingFn ~= nil) and (type(existingFn) == "function"))
-    then    
-        local newFn =   function(...)
-                            if(not hookFunction(...)) then
-                                return existingFn(...)
-                            end
-                        end
+local function PreHook(objectTable, existingFunctionName, hookFunction)
+	if type(objectTable) == "string" then
+		hookFunction = existingFunctionName
+		existingFunctionName = objectTable
+		objectTable = _G
+	end
 
-        objectTable[existingFunctionName] = newFn
-    end
+	local existingFn = objectTable[existingFunctionName]
+	local newFn
+	if existingFn and type(existingFn) == "function" then
+		newFn = function(...)
+			hookFunction(...)
+			return existingFn(...)
+		end
+	else
+		newFn = hookFunction
+	end
+	objectTable[existingFunctionName] = newFn
 end
 
 local function HookContextMenu()

@@ -332,27 +332,6 @@ function util.OnStackRemoved(bagId, slotIndex, stackSize, stackCountChange)
     end
 end
 
---[[ Nonbroken version of ZO_Prehook. ]]
-function util.PreHook(objectTable, existingFunctionName, hookFunction)
-    if(type(objectTable) == "string") then
-        hookFunction = existingFunctionName
-        existingFunctionName = objectTable
-        objectTable = _G
-    end
-     
-    local existingFn = objectTable[existingFunctionName]
-    if((existingFn ~= nil) and (type(existingFn) == "function"))
-    then    
-        local newFn =   function(...)
-                            if(not hookFunction(...)) then
-                                return existingFn(...)
-                            end
-                        end
-
-        objectTable[existingFunctionName] = newFn
-    end
-end
-
 --[[ Similar to ZO_PreHook, but works with functions that return a value. 
      The original function will only be called if the hookFunction returns nil. ]]
 function util.PreHookReturn(objectTable, existingFunctionName, hookFunction)

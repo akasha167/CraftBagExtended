@@ -116,9 +116,9 @@ local function PreDiscoverSlotActions(inventorySlot, slotActions)
     if fromCraftBag or cbe.constants.SLOT_TYPES[slotType] then
         
         if not slotActions.craftBagExtendedHooked then
-            util.PreHook(slotActions, "Clear", PreInventorySlotActionsClear)
-            util.PreHook(slotActions, "GetAction", PreInventorySlotActionsGetAction)
-            util.PreHook(slotActions, "Show", PreInventorySlotActionsGetAction)
+            ZO_PreHook(slotActions, "Clear", PreInventorySlotActionsClear)
+            ZO_PreHook(slotActions, "GetAction", PreInventorySlotActionsGetAction)
+            ZO_PreHook(slotActions, "Show", PreInventorySlotActionsGetAction)
             slotActions.craftBagExtendedHooked = true
         end
         cbe.customSlotActionDescriptors = {}
@@ -196,22 +196,30 @@ local quantityKeybind = {
                    return cbe.slotActions and cbe.slotActions:GetKeybindActionName(3) ~= nil
                end,
 }
-local function PreItemSlotActionsControllerAddSubCommand(slotActionsController, command, hasBind, activateCallback)
 
-    -- Hook into when the tertiary keybind slot is created. 
-    -- This should only be on keyboard mode.
-    if command.keybind ~= "UI_SHORTCUT_TERTIARY" then return end
+local function PreItemSlotActionsControllerSetInventorySlot(slotActionsController, inventorySlot)
+    if not inventorySlot or slotActionsController.cbeKeybind3Created then return end
     
-    -- Create the tertiary keybind as usual
-    slotActionsController[#slotActionsController + 1] = 
-        { command, hasBind = hasBind, activateCallback = activateCallback }
+    local command
+    local commandIndex
+    for i, existingCommand in ipairs(slotActionsController) do
+        if existingCommand[1] and existingCommand[1].keybind == "UI_SHORTCUT_TERTIARY" then
+            command = existingCommand[1]
+            commandIndex = i
+            break
+        end
+    end
+    if not command then
+        util.Debug("Tertiary keybind not found", debug)
+        return
+    end
     
     -- Create a quickslot keybind whenever the tertiary keybind is created
     quantityKeybind.alignment = command.alignment
-    slotActionsController:AddSubCommand(quantityKeybind, quantityKeybind.hasBind)
+    table.insert(slotActionsController, commandIndex + 1, 
+        { quantityKeybind, hasBind = quantityKeybind.hasBind, activateCallback = nil })
     
-    -- Do not execute the tertiary keybind add, since it's already been added
-    return true
+    slotActionsController.cbeKeybind3Created = true
 end
 
 local function PreSceneManagerAddFragmentGroup(sceneManager, fragmentGroup)
@@ -308,15 +316,15 @@ function CraftBagExtended:InitializeHooks()
     ZO_CraftBagTabs:SetAnchor(BOTTOMRIGHT, ZO_CraftBagFilterDivider, TOPRIGHT, tabsOffsetX, -14, 0)
     
     -- Disallow duplicates with same names
-    util.PreHook(ZO_InventorySlotActions, "AddSlotAction", PreAddSlotAction)
+    ZO_PreHook(ZO_InventorySlotActions, "AddSlotAction", PreAddSlotAction)
     
-    util.PreHook("ZO_InventorySlot_DiscoverSlotActionsFromActionList", PreDiscoverSlotActions)
-    util.PreHook(ZO_ItemSlotActionsController, "AddSubCommand", PreItemSlotActionsControllerAddSubCommand)
+    ZO_PreHook("ZO_InventorySlot_DiscoverSlotActionsFromActionList", PreDiscoverSlotActions)
+    ZO_PreHook(ZO_ItemSlotActionsController, "SetInventorySlot", PreItemSlotActionsControllerSetInventorySlot)
     
     util.PreHookReturn("IsItemBound", PreIsItemBound)
     
-    util.PreHook(PLAYER_INVENTORY, "ShouldAddSlotToList", PreInventoryShouldAddSlotToList)
-    util.PreHook(SCENE_MANAGER, "AddFragmentGroup", PreSceneManagerAddFragmentGroup)
+    ZO_PreHook(PLAYER_INVENTORY, "ShouldAddSlotToList", PreInventoryShouldAddSlotToList)
+    ZO_PreHook(SCENE_MANAGER, "AddFragmentGroup", PreSceneManagerAddFragmentGroup)
     
     -- Get transfer dialog configuration object
     local transferDialogKeys = { 
@@ -342,7 +350,7 @@ function CraftBagExtended:InitializeHooks()
     end
     
     --[[ Load any default values for the transfer dialog ]]
-    util.PreHook(SYSTEMS:GetKeyboardObject("ItemTransferDialog"), "Refresh", PreTransferDialogRefresh)
+    ZO_PreHook(SYSTEMS:GetKeyboardObject("ItemTransferDialog"), "Refresh", PreTransferDialogRefresh)
     
     --[[ Handle craft bag open/close events ]]
     CRAFT_BAG_FRAGMENT:RegisterCallback("StateChange",  OnCraftBagFragmentStateChange)
