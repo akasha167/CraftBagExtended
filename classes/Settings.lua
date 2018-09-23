@@ -2,6 +2,8 @@ local cbe      = CraftBagExtended
 local class    = cbe.classes
 class.Settings = ZO_Object:Subclass()
 
+local LibSavedVars = LibStub("LibSavedVars")
+
 function class.Settings:New(...)
     local controller = ZO_Object.New(self)
     controller:Initialize(...)
@@ -14,8 +16,12 @@ function class.Settings:Initialize()
     self.defaults = {
         guildBankAutoStashOff = false,
         primaryActionsUseDefault = true,
+        useAccountSettings = true,
     }
-    self.db = ZO_SavedVars:NewAccountWide("CraftBagExtended_Data", 1, nil, self.defaults)
+    local legacyAccountSettings = ZO_SavedVars:NewAccountWide(cbe.name .. "_Data", 1)
+    LibSavedVars:Init(self, cbe.name .. "_Account", cbe.name .. "_Character", 
+                      self.defaults, nil, legacyAccountSettings, true)
+
 
     local LAM2 = LibStub("LibAddonMenu-2.0")
     if not LAM2 then return end
@@ -28,18 +34,19 @@ function class.Settings:Initialize()
         version = cbe.version,
         website = "http://www.esoui.com/downloads/info1419-CraftBagExtended.htm",
         slashCommand = "/craftbag",
-        -- registerForRefresh = true,
+        registerForRefresh = true,
         registerForDefaults = true,
     }
     self.menuPanel = LAM2:RegisterAddonPanel(cbe.name .. "MenuPanel", panelData)
 
     local optionsTable = {
+        LibSavedVars:GetLibAddonMenuSetting(self, self.defaults.useAccountSettings),
         {
             type = "checkbox",
             name = GetString(SI_CBE_PRIMARY_ACTIONS_USE_DEFAULT),
             tooltip = GetString(SI_CBE_PRIMARY_ACTIONS_USE_DEFAULT_TOOLTIP),
-            getFunc = function() return self.db.primaryActionsUseDefault end,
-            setFunc = function(value) self.db.primaryActionsUseDefault = value end,
+            getFunc = function() return LibSavedVars:Get(self, "primaryActionsUseDefault") end,
+            setFunc = function(value) LibSavedVars:Set(self, "primaryActionsUseDefault", value) end,
             default = self.defaults.primaryActionsUseDefault,
         },
     }
@@ -48,14 +55,14 @@ end
 
 --[[ Retrieves a saved item transfer default quantity for a particular scope. ]]
 function class.Settings:GetTransferDefault(scope, itemId, isDialog)
-    if not self.db.primaryActionsUseDefault and not isDialog then
+    if not LibSavedVars:Get(self, "primaryActionsUseDefault") and not isDialog then
         return
     end
     local default
-    if self.db.transferDefaults 
-       and self.db.transferDefaults[scope] 
+    if LibSavedVars:Get(self, "transferDefaults")
+       and LibSavedVars:Get(self, "transferDefaults")[scope] 
     then
-        default = self.db.transferDefaults[scope][itemId]
+        default = LibSavedVars:Get(self, "transferDefaults")[scope][itemId]
     end
     return default
 end
@@ -64,19 +71,19 @@ end
 function class.Settings:SetTransferDefault(scope, itemId, default)
     -- Save default in saved var
     if type(default) == "number" then
-        if not self.db.transferDefaults then
-            self.db.transferDefaults = {}
+        if not LibSavedVars:Get(self, "transferDefaults") then
+            LibSavedVars:Set(self, "transferDefaults", {})
         end
-        if not self.db.transferDefaults[scope] then
-            self.db.transferDefaults[scope] = {}
+        if not LibSavedVars:Get(self, "transferDefaults")[scope] then
+            LibSavedVars:Get(self, "transferDefaults")[scope] = {}
         end
-        self.db.transferDefaults[scope][itemId] = default
+        LibSavedVars:Get(self, "transferDefaults")[scope][itemId] = default
         
     -- Clear nil defaults, if set
-    elseif self.db.transferDefaults 
-       and self.db.transferDefaults[scope] 
-       and self.db.transferDefaults[scope][itemId]
+    elseif LibSavedVars:Get(self, "transferDefaults") 
+       and LibSavedVars:Get(self, "transferDefaults")[scope] 
+       and LibSavedVars:Get(self, "transferDefaults")[scope][itemId]
     then
-        self.db.transferDefaults[scope][itemId] = nil
+        LibSavedVars:Get(self, "transferDefaults")[scope][itemId] = nil
     end
 end

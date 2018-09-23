@@ -5,7 +5,6 @@ class.TransferItem = ZO_Object:Subclass()
 
 local name = cbe.name .. "TransferItem"
 local debug = false
-local LTO = LibStub("LibTimeout")
 local instanceId = 0
 
 function class.TransferItem:New(queue, slotIndex, quantity, callback, ...)
@@ -57,7 +56,7 @@ function class.TransferItem:CancelUnqueueTimeout()
     end
     util.Debug(self.name..":CancelUnqueueTimeout()", debug)
     local scopeName = name .. tostring(self.instanceId) .. "Unqueue"
-    LTO:CancelTimeout(scopeName)
+    EVENT_MANAGER:UnregisterForUpdate(scopeName)
 end
 
 --[[ Undoes a previous enqueue operation for this item ]]
@@ -140,11 +139,17 @@ function class.TransferItem:Requeue(targetBag)
     
 end
 
+local function unqueueSourceBagForItem(transferItem)
+    return function()
+        transferItem:UnqueueSourceBag()
+    end
+end
+
 function class.TransferItem:StartUnqueueTimeout(timeoutMilliseconds)
     util.Debug(self.name..":StartUnqueueTimeout("..tostring(timeoutMilliseconds)..")", debug)
     self.unqueueTimeout = timeoutMilliseconds
     local scopeName = name .. tostring(self.instanceId) .. "Unqueue"
-    LTO:StartTimeout( { name = scopeName }, timeoutMilliseconds, class.TransferItem.UnqueueSourceBag, self)
+    EVENT_MANAGER:RegisterForUpdate( scopeName, timeoutMilliseconds, unqueueSourceBagForItem(self))
 end
 
 function class.TransferItem:UnqueueSourceBag()
