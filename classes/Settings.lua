@@ -15,12 +15,11 @@ function class.Settings:Initialize()
     self.name = cbe.name .. "Settings"
     self.defaults = {
         guildBankAutoStashOff = false,
-        primaryActionsUseDefault = true,
-        useAccountSettings = true,
+        primaryActionsUseDefault = true
     }
+    self.db = LibSavedVars:New(cbe.name .. "_Account", cbe.name .. "_Character", self.defaults, true)
     local legacyAccountSettings = ZO_SavedVars:NewAccountWide(cbe.name .. "_Data", 1)
-    LibSavedVars:Init(self, cbe.name .. "_Account", cbe.name .. "_Character", 
-                      self.defaults, nil, legacyAccountSettings, true)
+    self.db:Migrate(legacyAccountSettings)
 
 
     local LAM2 = LibStub("LibAddonMenu-2.0")
@@ -40,13 +39,17 @@ function class.Settings:Initialize()
     self.menuPanel = LAM2:RegisterAddonPanel(cbe.name .. "MenuPanel", panelData)
 
     local optionsTable = {
-        LibSavedVars:GetLibAddonMenuSetting(self, self.defaults.useAccountSettings),
+        
+        -- Account wide settings checkbox
+        self.db:GetLibAddonMenuAccountCheckbox(),
+        
+        -- Primary actions use default
         {
             type = "checkbox",
             name = GetString(SI_CBE_PRIMARY_ACTIONS_USE_DEFAULT),
             tooltip = GetString(SI_CBE_PRIMARY_ACTIONS_USE_DEFAULT_TOOLTIP),
-            getFunc = function() return LibSavedVars:Get(self, "primaryActionsUseDefault") end,
-            setFunc = function(value) LibSavedVars:Set(self, "primaryActionsUseDefault", value) end,
+            getFunc = function() return self.db.primaryActionsUseDefault end,
+            setFunc = function(value) self.db.primaryActionsUseDefault = value end,
             default = self.defaults.primaryActionsUseDefault,
         },
     }
@@ -55,14 +58,14 @@ end
 
 --[[ Retrieves a saved item transfer default quantity for a particular scope. ]]
 function class.Settings:GetTransferDefault(scope, itemId, isDialog)
-    if not LibSavedVars:Get(self, "primaryActionsUseDefault") and not isDialog then
+    if not self.db.primaryActionsUseDefault and not isDialog then
         return
     end
     local default
-    if LibSavedVars:Get(self, "transferDefaults")
-       and LibSavedVars:Get(self, "transferDefaults")[scope] 
+    if self.db.transferDefaults 
+       and self.db.transferDefaults[scope] 
     then
-        default = LibSavedVars:Get(self, "transferDefaults")[scope][itemId]
+        default = self.db.transferDefaults[scope][itemId]
     end
     return default
 end
@@ -71,19 +74,19 @@ end
 function class.Settings:SetTransferDefault(scope, itemId, default)
     -- Save default in saved var
     if type(default) == "number" then
-        if not LibSavedVars:Get(self, "transferDefaults") then
-            LibSavedVars:Set(self, "transferDefaults", {})
+        if not self.db.transferDefaults then
+            self.db.transferDefaults = {}
         end
-        if not LibSavedVars:Get(self, "transferDefaults")[scope] then
-            LibSavedVars:Get(self, "transferDefaults")[scope] = {}
+        if not self.db.transferDefaults[scope] then
+            self.db.transferDefaults[scope] = {}
         end
-        LibSavedVars:Get(self, "transferDefaults")[scope][itemId] = default
+        self.db.transferDefaults[scope][itemId] = default
         
     -- Clear nil defaults, if set
-    elseif LibSavedVars:Get(self, "transferDefaults") 
-       and LibSavedVars:Get(self, "transferDefaults")[scope] 
-       and LibSavedVars:Get(self, "transferDefaults")[scope][itemId]
+    elseif self.db.transferDefaults 
+       and self.db.transferDefaults[scope] 
+       and self.db.transferDefaults[scope][itemId]
     then
-        LibSavedVars:Get(self, "transferDefaults")[scope][itemId] = nil
+        self.db.transferDefaults[scope][itemId] = nil
     end
 end
