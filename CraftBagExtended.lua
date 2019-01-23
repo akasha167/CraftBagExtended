@@ -6,7 +6,7 @@ CraftBagExtended = {
     name       = "CraftBagExtended",
     title      = GetString(SI_CBE),
     author     = "|c99CCEFsilvereyes|r",
-    version    = "2.6.1",
+    version    = "2.7.0",
     apiVersion = 1.0,
     debug      = false,
     classes    = {},
@@ -259,6 +259,11 @@ end
      listing and/or when they arrive in the craft bag. ]]
 function CraftBagExtended:TradingHouseRemoveFromListing(slotIndex, removedCallback, craftbagCallback)
     return self.modules.tradingHouse:RemoveFromListing(slotIndex, removedCallback, craftbagCallback)
+end
+
+--[[ Searches the guild trader for the given craft bag item slot index. ]]
+function CraftBagExtended:TradingHouseSearch(slotIndex)
+    return self.modules.tradingHouse:Search(slotIndex)
 end
 
 --[[ Moves a given quantity of a craft bag slot to the backpack and then sells it.

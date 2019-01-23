@@ -187,7 +187,7 @@ function class.Trade:AddSlotActions(slotInfo)
         table.insert(slotInfo.slotActions, {
             SI_CBE_CRAFTBAG_TRADE_ADD, 
             function() cbe:TradeAddToOfferDialog(slotInfo.slotIndex) end, 
-            "keybind3"
+            "keybind4"
         })
     end
 end

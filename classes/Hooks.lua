@@ -42,12 +42,12 @@ end
      would conflict with ours. ]]
 local function PreAddSlotAction(slotActions, actionStringId, actionCallback, actionType, visibilityFunction, options)
    
-    -- Add a keybind3 handler for the Q key
+    -- Add a keybind4 handler for the Q key
     if cbe.addingSlotActions then
         
-        if actionType == "keybind3" then
+        if actionType == "keybind4" then
             local actionName = GetString(actionStringId)
-            slotActions.m_keybindActions[3] = { 
+            slotActions.m_keybindActions[4] = { 
                 actionName, actionCallback, "keybind", 
                 visibilityFunction, options 
             }
@@ -178,27 +178,27 @@ local function PreIsItemBound(bagId, slotIndex)
     end
 end
 
---[[ Add quantity keybind option for the custom "keybind3" action type ]]
+--[[ Add quantity keybind option for the custom "keybind4" action type ]]
 local quantityKeybind = {
     name     = function()
-                   return cbe.slotActions and cbe.slotActions:GetKeybindActionName(3)
+                   return cbe.slotActions and cbe.slotActions:GetKeybindActionName(4)
                end,
     keybind  = cbe.constants.KEYBIND_QUANTITY,
     callback = function()
                    if cbe.slotActions then 
-                       cbe.slotActions:DoKeybindAction(3)
+                       cbe.slotActions:DoKeybindAction(4)
                    end
                end,
     visible  = function()
-                   return cbe.slotActions and cbe.slotActions:CheckKeybindActionVisibility(3)
+                   return cbe.slotActions and cbe.slotActions:CheckKeybindActionVisibility(4)
                end,
     hasBind  = function()
-                   return cbe.slotActions and cbe.slotActions:GetKeybindActionName(3) ~= nil
+                   return cbe.slotActions and cbe.slotActions:GetKeybindActionName(4) ~= nil
                end,
 }
 
 local function PreItemSlotActionsControllerSetInventorySlot(slotActionsController, inventorySlot)
-    if not inventorySlot or slotActionsController.cbeKeybind3Created then return end
+    if not inventorySlot or slotActionsController.cbeKeybind4Created then return end
     
     local command
     local commandIndex
@@ -219,7 +219,7 @@ local function PreItemSlotActionsControllerSetInventorySlot(slotActionsControlle
     table.insert(slotActionsController, commandIndex + 1, 
         { quantityKeybind, hasBind = quantityKeybind.hasBind, activateCallback = nil })
     
-    slotActionsController.cbeKeybind3Created = true
+    slotActionsController.cbeKeybind4Created = true
 end
 
 local function PreSceneManagerAddFragmentGroup(sceneManager, fragmentGroup)

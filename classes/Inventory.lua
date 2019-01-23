@@ -34,7 +34,7 @@ function class.Inventory:AddSlotActions(slotInfo)
             (isShown and "primary") or "secondary"
         })
         --[[ Stow quantity ]]--
-        -- Note the lack of a "keybind3" assignment. This is to avoid conflicts
+        -- Note the lack of a "keybind4" assignment. This is to avoid conflicts
         -- with the actual quickslot keybind from the inventory panel.
         table.insert(slotInfo.slotActions, {
             SI_CBE_CRAFTBAG_STOW_QUANTITY,  
@@ -59,7 +59,7 @@ function class.Inventory:AddSlotActions(slotInfo)
                 cbe.noAutoReturn = true
                 cbe:RetrieveDialog(slotIndex)
             end,
-            (isShown and "keybind3") or "secondary"
+            (isShown and "keybind4") or "secondary"
         })
 
     end

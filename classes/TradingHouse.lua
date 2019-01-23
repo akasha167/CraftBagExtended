@@ -14,9 +14,16 @@ function class.TradingHouse:New(...)
 
     -- Make sure that the trading house UI is initialized so that we can hook
     -- its tab buttons.
-    if not TRADING_HOUSE.m_initialized then
-        TRADING_HOUSE:RunInitialSetup(TRADING_HOUSE.m_control)
-        TRADING_HOUSE.m_initialized = true
+    if TRADING_HOUSE.control then -- Update 21+
+        if not TRADING_HOUSE.initialized then
+            TRADING_HOUSE:RunInitialSetup(TRADING_HOUSE.control)
+            TRADING_HOUSE.initialized = true
+        end
+    elseif TRADING_HOUSE.m_control then -- Update 20-
+        if not TRADING_HOUSE.m_initialized then
+            TRADING_HOUSE:RunInitialSetup(TRADING_HOUSE.m_control)
+            TRADING_HOUSE.m_initialized = true
+        end
     end
 
     local instance = class.Module.New(self, 
@@ -110,8 +117,15 @@ function class.TradingHouse:Setup()
     
     EVENT_MANAGER:RegisterForEvent(self.name, EVENT_TRADING_HOUSE_RESPONSE_RECEIVED, util.RefreshMouseOverSlot)
     
-    -- Listen for mode changes / tab changes to know when to show/hide our craft bag toggle menu
     TRADING_HOUSE.craftBagExtendedModule = self
+    
+    -- Move guild switcher keybind to leftmost keybind strip to allow room for the new
+    -- Search for Item keybind.
+    if TRADING_HOUSE_SEARCH then
+        TRADING_HOUSE.sellKeybindStripDescriptor.alignment = KEYBIND_STRIP_ALIGN_LEFT
+    end
+    
+    -- Listen for mode changes / tab changes to know when to show/hide our craft bag toggle menu
     self.originalSetCurrentMode = TRADING_HOUSE.SetCurrentMode
     TRADING_HOUSE.SetCurrentMode = OnSetCurrentMode
 end
@@ -175,7 +189,7 @@ end
 function class.TradingHouse:AddSlotActions(slotInfo)
 
     -- Don't add keybinds if AGS is enabled or if the trade house is closed.
-    if AwesomeGuildStore or not TRADING_HOUSE:IsAtTradingHouse() then
+    if AwesomeGuildStore or GetInteractionType() ~= INTERACTION_TRADINGHOUSE then
         return
     end
     
@@ -200,8 +214,16 @@ function class.TradingHouse:AddSlotActions(slotInfo)
         table.insert(slotInfo.slotActions, {
             SI_CBE_CRAFTBAG_TRADE_ADD, 
             function() cbe:TradingHouseAddToListingDialog(slotIndex) end, 
-            "keybind3"
+            "keybind4"
         })
+        --[[ Search in Store ]]
+        if TRADING_HOUSE_SEARCH then
+          table.insert(slotInfo.slotActions, {
+              SI_TRADING_HOUSE_SEARCH_FROM_ITEM, 
+              function() cbe:TradingHouseSearch(slotIndex) end, 
+              "keybind3"
+          })
+        end
     end    
 end
 
@@ -265,4 +287,11 @@ function class.TradingHouse:RemoveFromListing(slotIndex, removedCallback, craftb
     local transferQueue = util.GetTransferQueue(BAG_BACKPACK, BAG_VIRTUAL)
     transferQueue:Enqueue(slotIndex, nil, callback)
     SetPendingItemPost(BAG_BACKPACK, 0, 0)
+end
+
+function class.TradingHouse:Search(slotIndex)
+    if TRADING_HOUSE_SEARCH:IsAtTradingHouse() then
+        local itemLink = GetItemLink(BAG_VIRTUAL, slotIndex)
+        TRADING_HOUSE:SearchForItemLink(itemLink)
+    end
 end

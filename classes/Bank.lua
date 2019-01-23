@@ -157,7 +157,7 @@ function class.Bank:AddSlotActions(slotInfo)
         table.insert(slotInfo.slotActions, {
             SI_CBE_CRAFTBAG_BANK_WITHDRAW,  
             function() cbe:BankWithdrawDialog(slotInfo.bag, slotInfo.slotIndex) end,
-            "keybind3"
+            "keybind4"
         })
     
     elseif slotInfo.slotType == SLOT_TYPE_CRAFT_BAG_ITEM then
@@ -172,7 +172,7 @@ function class.Bank:AddSlotActions(slotInfo)
         table.insert(slotInfo.slotActions, {
             SI_CBE_CRAFTBAG_BANK_DEPOSIT,  
             function() cbe:BankDepositDialog(slotInfo.slotIndex) end,
-            "keybind3"
+            "keybind4"
         })
     end
 end

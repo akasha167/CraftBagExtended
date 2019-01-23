@@ -60,7 +60,7 @@ function class.Vendor:AddSlotActions(slotInfo)
         table.insert(slotInfo.slotActions, {
             SI_CBE_CRAFTBAG_SELL_QUANTITY, 
             function() cbe:VendorSellDialog(slotInfo.slotIndex) end, 
-            "keybind3"
+            "keybind4"
         })
     end
 end

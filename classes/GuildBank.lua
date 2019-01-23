@@ -163,7 +163,7 @@ function class.GuildBank:AddSlotActions(slotInfo)
     table.insert(slotInfo.slotActions, {
         SI_CBE_CRAFTBAG_BANK_DEPOSIT,  
         function() cbe:GuildBankDepositDialog(slotIndex) end,
-        "keybind3"
+        "keybind4"
     })
 end
 

@@ -215,7 +215,7 @@ function class.Mail:AddSlotActions(slotInfo)
         table.insert(slotInfo.slotActions, {
             SI_CBE_CRAFTBAG_MAIL_ATTACH, 
             function() cbe:MailAttachDialog(slotIndex) end, 
-            "keybind3"
+            "keybind4"
         })
     end
 end
