@@ -45,6 +45,9 @@ local function OnTradeItemAdded(eventCode, who, tradeIndex, itemSoundCategory)
     
     UnreserveTradeIndex(tradeIndex)
     local _, slotIndex = GetTradeItemBagAndSlot(TRADE_ME, tradeIndex)
+    if slotIndex == nil then
+        return
+    end
     util.Debug("OnTradeItemAdded(tradeIndex="..tostring(tradeIndex)..",slotIndex="..tostring(slotIndex)..")", debug)
     if util.IsFromCraftBag(BAG_BACKPACK, slotIndex) then 
         cbe.tradeSlotMap[tradeIndex] = slotIndex
