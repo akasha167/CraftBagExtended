@@ -5,8 +5,8 @@ end
 CraftBagExtended = {
     name       = "CraftBagExtended",
     title      = GetString(SI_CBE),
-    author     = "|c99CCEFsilvereyes|r",
-    version    = "2.7.1",
+    author     = "silvereyes",
+    version    = "2.8.1",
     apiVersion = 1.0,
     debug      = false,
     classes    = {},
