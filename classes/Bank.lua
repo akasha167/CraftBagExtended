@@ -62,6 +62,7 @@ function class.Bank:Setup(bankFragment)
         if button.callback == DisplayBankUpgrade then
             table.insert(self.buyBankSpaceButtonGroup, 1, button)
             table.remove(buttonGroup, i)
+            PLAYER_INVENTORY.bankWithdrawTabKeybindButtonGroup = self.buyBankSpaceButtonGroup
             break
         end
     end
