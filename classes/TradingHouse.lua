@@ -195,12 +195,26 @@ function class.TradingHouse:AddSlotActions(slotInfo)
     
     local slotIndex = slotInfo.slotIndex
     if IsItemAlreadyBeingPosted(slotInfo.inventorySlot) then
-        if slotInfo.bag == BAG_BACKPACK and slotInfo.fromCraftBag then
-            --[[ Remove from Listing ]]
+        if slotInfo.bag == BAG_BACKPACK then
+          
+            if slotInfo.fromCraftBag then
+            
+                --[[ Remove from Listing ]]
+                table.insert(slotInfo.slotActions, {
+                    SI_TRADING_HOUSE_REMOVE_PENDING_POST, 
+                    function() cbe:TradingHouseRemoveFromListing(slotIndex) end, 
+                    "primary"
+                })
+              
+            end
+          
+            --[[ Nil stow action ]]
             table.insert(slotInfo.slotActions, {
-                SI_TRADING_HOUSE_REMOVE_PENDING_POST, 
-                function() cbe:TradingHouseRemoveFromListing(slotIndex) end, 
-                "primary"
+                SI_ITEM_ACTION_ADD_ITEMS_TO_CRAFT_BAG, 
+                function() end, 
+                "hidden",
+                nil,
+                "silent"
             })
         end
     elseif slotInfo.bag == BAG_VIRTUAL then

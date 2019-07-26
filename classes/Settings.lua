@@ -2,8 +2,6 @@ local cbe      = CraftBagExtended
 local class    = cbe.classes
 class.Settings = ZO_Object:Subclass()
 
-local LibSavedVars = LibSavedVars or LibStub("LibSavedVars")
-
 function class.Settings:New(...)
     local controller = ZO_Object.New(self)
     controller:Initialize(...)
@@ -20,10 +18,8 @@ function class.Settings:Initialize()
     self.db = LibSavedVars:New(cbe.name .. "_Account", cbe.name .. "_Character", self.defaults, true)
     local legacyAccountSettings = ZO_SavedVars:NewAccountWide(cbe.name .. "_Data", 1)
     self.db:Migrate(legacyAccountSettings)
-
-
-    local LAM2 = LibAddonMenu2 or LibStub("LibAddonMenu-2.0")
-    if not LAM2 then return end
+    
+    if not LibAddonMenu2 then return end
 
     local panelData = {
         type = "panel",
@@ -36,7 +32,7 @@ function class.Settings:Initialize()
         registerForRefresh = true,
         registerForDefaults = true,
     }
-    self.menuPanel = LAM2:RegisterAddonPanel(cbe.name .. "MenuPanel", panelData)
+    self.menuPanel = LibAddonMenu2:RegisterAddonPanel(cbe.name .. "MenuPanel", panelData)
 
     local optionsTable = {
         
@@ -53,7 +49,7 @@ function class.Settings:Initialize()
             default = self.defaults.primaryActionsUseDefault,
         },
     }
-    LAM2:RegisterOptionControls(cbe.name .. "MenuPanel", optionsTable)
+    LibAddonMenu2:RegisterOptionControls(cbe.name .. "MenuPanel", optionsTable)
 end
 
 --[[ Retrieves a saved item transfer default quantity for a particular scope. ]]

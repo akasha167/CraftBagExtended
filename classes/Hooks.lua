@@ -261,7 +261,7 @@ local function PreTransferDialogFinished(dialog)
         
         -- Save or clear default quantity
         local scope = util.GetTransferItemScope(transferDialog.bag, transferDialog.targetBag)
-        local default = ZO_CheckButton_IsChecked(transferDialog.checkboxControl) and quantity or nil
+        local default = transferDialog.checkboxControl and ZO_CheckButton_IsChecked(transferDialog.checkboxControl) and quantity or nil
         local itemId = GetItemId(transferDialog.bag, transferDialog.slotIndex)
         cbe.settings:SetTransferDefault(scope, itemId, default)
     end
@@ -276,10 +276,13 @@ end
 local function PreTransferDialogRefresh(transferDialog)
 
     local self = transferDialog
+    
     local scope = util.GetTransferItemScope(transferDialog.bag, transferDialog.targetBag)
     local itemId = GetItemId(transferDialog.bag, transferDialog.slotIndex)
     local default = cbe.settings:GetTransferDefault(scope, itemId, true)
-    ZO_CheckButton_SetCheckState(transferDialog.checkboxControl, default ~= nil)
+    if transferDialog.checkboxControl then
+        ZO_CheckButton_SetCheckState(transferDialog.checkboxControl, default ~= nil)
+    end
     if type(default) == "number" then
         util.Debug("Setting transfer dialog quantity default to "..tostring(default).."...", debug)
         self.spinner:SetValue(default, true)
