@@ -24,19 +24,6 @@ local function OnInventoryFragmentStateChange(oldState, newState)
     end
 end
 
---[[ Handle scene changes involving a craft bag. ]]
-local function OnModuleSceneStateChange(oldState, newState)
-    if newState == SCENE_SHOWING then
-        -- When switching craft bag scenes, we need to do a list update, since
-        -- ZOS doesn't do it by default like they do with the main backpack
-        if cbe.currentScene ~= SCENE_MANAGER.currentScene then
-            cbe.currentScene = SCENE_MANAGER.currentScene
-            local UPDATE_EVEN_IF_HIDDEN = true
-            PLAYER_INVENTORY:UpdateList(INVENTORY_CRAFT_BAG, UPDATE_EVEN_IF_HIDDEN)
-        end
-    end
-end
-
 --[[ Runs whenever a new inventory slot action is added. Used to ammend the
      available keybinds, as well as suppress existing slot actions names that 
      would conflict with ours. ]]
@@ -360,16 +347,5 @@ function CraftBagExtended:InitializeHooks()
     
     --[[ Handle player inventory open events ]]
     INVENTORY_FRAGMENT:RegisterCallback("StateChange",  OnInventoryFragmentStateChange)
-    
-    --[[ Handle craft bag scene changes ]]
-    SCENE_MANAGER.scenes["inventory"]:RegisterCallback("StateChange",  OnModuleSceneStateChange)
-    for moduleName, module in pairs(self.modules) do
-        if type(module.sceneName) == "string" and SCENE_MANAGER.scenes[module.sceneName] then
-            SCENE_MANAGER.scenes[module.sceneName]:RegisterCallback("StateChange",  OnModuleSceneStateChange)
-        end
-    end
-    if AwesomeGuildStore then
-        SCENE_MANAGER.scenes["tradinghouse"]:RegisterCallback("StateChange",  OnModuleSceneStateChange)
-    end
     
 end
