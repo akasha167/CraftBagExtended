@@ -1,8 +1,8 @@
 ## Title: Craft Bag Extended
 ## Author: silvereyes
 ## Description: Adds ESO+ craft bag to guild bank/store, mail, trade, vendor, player bank and housing containers; allows disabling auto-stash for guild bank withdrawals.
-## Version: 2.8.4
-## APIVersion: 100028 100029
+## Version: 2.8.5
+## APIVersion: 100029 100030
 ## DependsOn: LibSavedVars LibAddonMenu-2.0 LibCustomMenu
 ## OptionalDependsOn: TweakIt AwesomeGuildStore
 ## SavedVariables: CraftBagExtended_Account
