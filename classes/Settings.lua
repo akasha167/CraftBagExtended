@@ -15,9 +15,12 @@ function class.Settings:Initialize()
         guildBankAutoStashOff = false,
         primaryActionsUseDefault = true
     }
-    self.db = LibSavedVars:New(cbe.name .. "_Account", cbe.name .. "_Character", self.defaults, true)
-    local legacyAccountSettings = ZO_SavedVars:NewAccountWide(cbe.name .. "_Data", 1)
-    self.db:Migrate(legacyAccountSettings)
+    self.db = LibSavedVars:NewAccountWide(cbe.name .. "_Account", self.defaults)
+                          :AddCharacterSettingsToggle(cbe.name .. "_Character")
+    
+    if LSV_Data.EnableDefaultsTrimming then
+        self.db:EnableDefaultsTrimming()
+    end
     
     if not LibAddonMenu2 then return end
 
