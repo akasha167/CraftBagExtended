@@ -154,7 +154,7 @@ function util.GetSlotsAvailable(inventoryType)
         size = GetNumBagFreeSlots(BAG_BACKPACK) 
                - util.GetSingleton(class.EmptySlotTracker, BAG_BACKPACK):GetReservedSlotCount()
     
-    elseif inventoryType == INVENTORY_GUILDBANK then
+    elseif inventoryType == INVENTORY_GUILD_BANK then
         size = GetNumBagFreeSlots(BAG_GUILDBANK) 
                - util.GetTransferQueue( BAG_BACKPACK, BAG_GUILDBANK ).itemCount 
                - util.GetTransferQueue( BAG_VIRTUAL, BAG_BACKPACK ).itemCount
