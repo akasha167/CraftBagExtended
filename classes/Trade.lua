@@ -98,6 +98,18 @@ function class.Trade:Setup()
     cbe.tradeSlotMap = {}
     cbe.tradeSlotReservations = {}
     self.menu:SetAnchor(BOTTOMRIGHT, ZO_TradeMyControls, TOPRIGHT, 0, -12)
+    -- Handle text search context before scene changes
+    self.scene:RegisterCallback("StateChange", function(oldState, newState)
+        if newState == SCENE_SHOWING then
+            -- Deactivate any active text search before showing trade scene
+            for context, contextSearch in pairs(TEXT_SEARCH_MANAGER.contextSearches) do
+                if contextSearch.isActive then
+                    TEXT_SEARCH_MANAGER:DeactivateTextSearch(context)
+                    break -- Only one can be active at a time
+                end
+            end
+        end
+    end)
     -- Listen for bag slot update events so that we can process the callbacks
     EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_TRADE_CANCELED, OnTradeCanceled)
     EVENT_MANAGER:RegisterForEvent(cbe.name, EVENT_TRADE_FAILED, OnTradeCanceled)

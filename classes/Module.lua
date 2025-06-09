@@ -31,9 +31,17 @@ local function RemoveFragment(self, fragment)
 end
 
 local function SwapFragments(self, removeFragment, addFragment, layoutFragment)
+    -- Deactivate any active text search before swapping fragments
+    for context, contextSearch in pairs(TEXT_SEARCH_MANAGER.contextSearches) do
+        if contextSearch.isActive then
+            TEXT_SEARCH_MANAGER:DeactivateTextSearch(context)
+            break -- Only one can be active at a time
+        end
+    end
+
     if cbe.fragmentGroup then
         SCENE_MANAGER:RemoveFragmentGroup(cbe.fragmentGroup)
-        for i=1,#cbe.fragmentGroup do
+        for i = 1, #cbe.fragmentGroup do
             if cbe.fragmentGroup[i] == removeFragment then
                 cbe.fragmentGroup[i] = addFragment
             end
